@@ -22,16 +22,30 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (res.ok && e.request.method === 'GET') {
+  // ネットワーク優先: オンラインなら最新を取得、オフラインならキャッシュ
+  if (e.request.mode === 'navigate' || e.request.url.includes('jcl8ball')) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) {
           const clone = res.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
         }
         return res;
-      }).catch(() => cached);
-    })
-  );
+      }).catch(() => caches.match(e.request))
+    );
+  } else {
+    // 外部リソース(フォント,Chart.js): キャッシュ優先
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request).then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+          }
+          return res;
+        }).catch(() => cached);
+      })
+    );
+  }
 });
