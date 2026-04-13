@@ -3005,8 +3005,7 @@ const Adv = {
     const rack=this._g.currentRack;
     // グループが確定済みならフラグをセット
     if (rack.tableState === 'assigned') rack._groupConfirmed = true;
-    // セーフティはボールをポケットしない（selは無視）
-    if (type === 'safety') pocketed = [];
+    // セーフティ: ポケットした球はそのまま有効（テーブルから除去）。ターンのみ終了。（CSI 2-8条）
     const undoTableState=rack.tableState, undoGroupA=rack.groupA, undoGroupB=rack.groupB;
     const tSnap=rack.tableState, gASnap=rack.groupA, gBSnap=rack.groupB;
     pocketed.forEach(b=>{ rack.onTable=rack.onTable.filter(x=>x!==b); });
