@@ -1384,14 +1384,16 @@ const Players = {
     if (!item) return;
     const eName = escAttr(name);
     item.innerHTML =
-      '<input class="input" id="edit-name-' + eName + '" value="' + escAttr(p.name) + '" style="flex:2;min-width:0" placeholder="名前" maxlength="8">' +
+      '<input class="input" id="edit-name-' + eName + '" value="' + escAttr(p.name) + '" style="flex:2;min-width:0" placeholder="名前" maxlength="40">' +
       '<input class="input input-num" id="edit-rate-' + eName + '" type="number" inputmode="numeric" value="' + p.fargoRate + '" style="flex:1;min-width:0" placeholder="Rate">' +
+      '<button class="btn-ghost btn-sm" title="FargoRate検索" data-action="searchFargo" data-player="' + eName + '">🔍</button>' +
       '<button class="btn-ghost btn-sm" style="border-color:rgba(76,222,128,0.5);color:var(--green)" data-action="save" data-player="' + eName + '">✓</button>' +
       '<button class="btn-ghost btn-sm" data-action="cancel">✕</button>';
     item.onclick = function(e) {
       const t = e.target.closest('[data-action]');
       if (!t) return;
-      if (t.dataset.action === 'save') Players.saveEdit(t.dataset.player);
+      if (t.dataset.action === 'searchFargo') Players.searchFargoInEdit(t.dataset.player);
+      else if (t.dataset.action === 'save') Players.saveEdit(t.dataset.player);
       else if (t.dataset.action === 'cancel') Players.render();
     };
     const nameInput = el('edit-name-' + name);
@@ -1400,6 +1402,48 @@ const Players = {
     item.querySelectorAll('input').forEach(inp => {
       inp.onkeydown = e => { if (e.key === 'Enter') Players.saveEdit(name); };
     });
+  },
+
+  async searchFargoInEdit(origName) {
+    const nameInput = el('edit-name-' + origName);
+    if (!nameInput) return;
+    const q = nameInput.value.trim();
+    if (!q) { UI.toast('検索する名前を入力してください'); return; }
+    try {
+      const list = await Fargo.search(q);
+      if (!list.length) { UI.toast('該当なし'); return; }
+      this._editTarget = origName;
+      const body = el('fargo-results');
+      body.innerHTML = list.slice(0, 50).map(p => {
+        const full = (p.firstName + ' ' + p.lastName).trim().replace(/'/g, '');
+        return '<div onclick="Players._pickFargoForEdit(&quot;' + p.readableId + '&quot;,&quot;' + full + '&quot;,' + p.effectiveRating + ')" style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+            '<div style="min-width:0;flex:1"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (p.firstName + ' ' + p.lastName).trim() + '</div>' +
+            '<div style="font-size:11px;color:var(--text-dim)">' + (p.location || '—') + ' · ID:' + p.readableId + '</div></div>' +
+            '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:24px;color:var(--gold);letter-spacing:1px">' + p.effectiveRating + '</div>' +
+          '</div></div>';
+      }).join('');
+      UI.openModal('modal-fargo');
+    } catch (e) {
+      UI.toast('検索に失敗しました: ' + e.message);
+    }
+  },
+
+  _pickFargoForEdit(readableId, fullName, rating) {
+    const origName = this._editTarget;
+    if (!origName) { UI.closeModal('modal-fargo'); return; }
+    const nameInput = el('edit-name-' + origName);
+    const rateInput = el('edit-rate-' + origName);
+    if (nameInput) nameInput.value = fullName;
+    if (rateInput) rateInput.value = rating;
+    const players = State.getPlayers();
+    const idx = players.findIndex(p => p.name === origName);
+    if (idx >= 0) {
+      players[idx] = Object.assign({}, players[idx], { readableId: String(readableId) });
+      State.setPlayers(players);
+    }
+    this._editTarget = null;
+    UI.closeModal('modal-fargo');
   },
 
   saveEdit(origName) {
@@ -3311,16 +3355,18 @@ const Adv = {
   confirmEight(result) {
     if (!this._g) return;
     const rack=this._g.currentRack, player=rack.currentPlayer;
+    // 同ターンで選択されていた球（8番含む）をすべて pocketed に含める
+    const pocketed = [...this._sel];
+    if (!pocketed.includes(8)) pocketed.push(8);
     el('eight-result-area').style.display='none'; el('shot-btns').style.display='flex';
     if (result==='legal_pocket') {
       rack.winner=player;
-      rack.innings.push({inning:rack.currentInning,player,pocketed:[8],result:'rack_win',foul:false,safety:false,eightBall:'legal_pocket',isBreak:false});
-      rack.onTable=rack.onTable.filter(b=>b!==8);
+      rack.innings.push({inning:rack.currentInning,player,pocketed,result:'rack_win',foul:false,safety:false,eightBall:'legal_pocket',isBreak:false});
     } else {
       rack.winner=player==='A'?'B':'A';
-      rack.innings.push({inning:rack.currentInning,player,pocketed:[8],result:'rack_lose',foul:false,safety:false,eightBall:result,isBreak:false});
-      rack.onTable=rack.onTable.filter(b=>b!==8);
+      rack.innings.push({inning:rack.currentInning,player,pocketed,result:'rack_lose',foul:false,safety:false,eightBall:result,isBreak:false});
     }
+    rack.onTable=rack.onTable.filter(b=>!pocketed.includes(b));
     this._sel.clear(); this.finishRack();
   },
 
@@ -3589,7 +3635,12 @@ const Adv = {
     let bT=0,bL=0,wins=0,tR=racks.length,runouts=0,tInn=0,fouls=0,saf=0,turns=0,pock=0,e8att=0,e8suc=0,safSuc=0,safFail=0;
     let totalScore=0; // 総得点（ラック勝利=14点、敗者は実ポケット数）
     racks.forEach(rack=>{
-      if (rack.breakBy===key){bT++;if(rack.breakResult==='legal')bL++;}
+      if (rack.breakBy===key){
+        bT++;
+        const bi = (rack.innings||[]).find(i=>i.isBreak);
+        const isLegal = !!bi && !bi.foul && rack.breakResult !== 'foul' && rack.breakResult !== 'eight_jump';
+        if (isLegal) bL++;
+      }
       if (rack.winner===key) { wins++; totalScore+=14; }
       else if (rack.winner) {
         // 敗者：実際のポケット数（最大7）
@@ -3627,9 +3678,10 @@ const Adv = {
     racks.forEach(rack=>{
       if (rack.breakBy!==key) return;
       const bp=(rack.breakPocketed||[]).filter(b=>b!==8);
-      if (rack.breakResult!=='legal'||bp.length===0) return;
+      const bi=(rack.innings||[]).find(i=>i.isBreak);
+      const isLegal = !!bi && !bi.foul && rack.breakResult !== 'foul' && rack.breakResult !== 'eight_jump';
+      if (!isLegal || bp.length===0) return;
       brkContAtt++;
-      // ブレイク直後のイニングがそのプレイヤーか確認
       const firstPlay=(rack.innings||[]).find(i=>!i.isBreak);
       if (firstPlay&&firstPlay.player===key) brkCont++;
     });
