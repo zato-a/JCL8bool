@@ -68,6 +68,19 @@ button{cursor:pointer}
 .score-total{font-family:"Bebas Neue",sans-serif;font-size:48px;line-height:1;animation:text-glow-green 3s ease-in-out infinite}
 .score-total-a{color:var(--green)} .score-total-b{color:var(--accent);animation:text-glow-cyan 3s ease-in-out infinite}
 .score-goal{font-family:"Bebas Neue",sans-serif;font-size:18px;letter-spacing:3px;color:var(--text);line-height:1;margin-bottom:2px;animation:text-glow-green 3s ease-in-out infinite}
+.score-ring{position:relative;width:120px;height:120px;margin:6px auto 0}
+.score-ring svg{width:100%;height:100%;transform:rotate(-90deg);display:block}
+.score-ring .ring-bg{fill:none;stroke:rgba(255,255,255,0.08);stroke-width:8}
+.score-ring .ring-fg{fill:none;stroke-width:8;stroke-linecap:round;stroke-dasharray:0 100;transition:stroke-dasharray .6s ease}
+.score-ring-a .ring-fg{stroke:var(--green);filter:drop-shadow(0 0 6px rgba(76,222,128,0.45))}
+.score-ring-b .ring-fg{stroke:var(--accent);filter:drop-shadow(0 0 6px rgba(0,229,255,0.45))}
+.ring-score{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Bebas Neue",sans-serif;font-size:48px;line-height:1}
+.ring-score-a{color:var(--green);animation:text-glow-green 3s ease-in-out infinite}
+.ring-score-b{color:var(--accent);animation:text-glow-cyan 3s ease-in-out infinite}
+.score-remain{font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center;min-height:16px}
+.score-remain-val{font-weight:700;font-size:13px}
+.score-remain-val-a{color:var(--green)}
+.score-remain-val-b{color:var(--accent)}
 .score-vs{font-family:"Bebas Neue",sans-serif;font-size:20px;color:var(--text-dim);padding:0 12px;align-self:flex-end;padding-bottom:8px}
 .rack-row-header{display:grid;grid-template-columns:56px 1fr 24px 1fr 44px;padding:4px 16px;font-size:10px;color:var(--text-dim);letter-spacing:1px}
 .rack-row{display:grid;grid-template-columns:56px 1fr 24px 1fr 44px;padding:4px 16px;border-top:1px solid var(--border);align-items:center}
@@ -267,7 +280,19 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
         <span class="chev">▼</span>
       </button>
       <div style="display:none;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:12px 14px">
-        <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:1px;margin-bottom:8px">v1.1（2026/04/12）</div>
+        <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:1px;margin-bottom:8px">v2.4（2026/04/23）</div>
+        <ul style="font-size:12px;color:var(--text-dim);line-height:2;margin:0 0 12px;padding-left:16px">
+          <li>プレイヤー登録：FargoRate を API から検索・自動取得</li>
+          <li>ゲーム選択時：readableId から最新 FargoRate を自動更新（ラベル右にステータス表示）</li>
+          <li>スコアヘッダーを円リング化（現在点数・ゴールまでの残点数を表示）</li>
+          <li>簡単スコア：最終セット勝利後も相手スコア入力できるよう確定フロー修正</li>
+          <li>簡単スコア：確定ボタンをラック行の下に全幅配置</li>
+          <li>本格スコア：ラック中のライブ加算を廃止、ラック終了時に清算</li>
+          <li>本格スコア：8番ポケット勝者は必ず14点（上限修正）</li>
+          <li>本格スコア：「ターン終了」ラベル追加、ボタン文言「シュートミス」に変更</li>
+          <li>1手戻る/スコアリセット：下段に配置、未操作時はグレーアウト</li>
+        </ul>
+        <div style="font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;margin-bottom:8px">v1.1（2026/04/12）</div>
         <ul style="font-size:12px;color:var(--text-dim);line-height:2;margin:0;padding-left:16px">
           <li>本格スコア：1手取り消しをボール単位に改善</li>
           <li>本格スコア：自グループの球のみ点滅表示</li>
@@ -307,13 +332,13 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
           <div class="card-title">プレイヤー設定</div>
           <div class="form-row" style="margin-bottom:0">
             <div class="form-group">
-              <div class="label">プレイヤー A</div>
+              <div class="label" style="display:flex;align-items:center;gap:6px">プレイヤー A<span id="fargo-fetch-a" style="font-size:10px;color:var(--text-dim);letter-spacing:0;font-weight:400"></span></div>
               <select class="select" id="sel-a" onchange="Score.onSelectPlayer('a')" style="border-color:rgba(76,222,128,0.5);box-shadow:0 0 8px rgba(76,222,128,0.15)">
                 <option value="">-- 選択 --</option>
               </select>
             </div>
             <div class="form-group">
-              <div class="label">プレイヤー B</div>
+              <div class="label" style="display:flex;align-items:center;gap:6px">プレイヤー B<span id="fargo-fetch-b" style="font-size:10px;color:var(--text-dim);letter-spacing:0;font-weight:400"></span></div>
               <select class="select" id="sel-b" onchange="Score.onSelectPlayer('b')" style="border-color:rgba(0,229,255,0.5);box-shadow:0 0 8px rgba(0,229,255,0.15)">
                 <option value="">-- 選択 --</option>
               </select>
@@ -354,23 +379,27 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
         <div style="padding:0;overflow:hidden">
           <div class="score-hdr" id="simple-score-hdr" style="display:none">
             <div class="score-lbl">SCORE</div>
-            <div style="display:flex;gap:6px">
-              <button class="btn-ghost btn-sm" id="simple-undo-btn" onclick="Score.simpleUndo()" style="padding:4px 10px;font-size:11px;letter-spacing:1px">↩ 1手戻る</button>
-              <button class="btn-ghost btn-sm" id="simple-edit-btn" onclick="Score.simpleReset()" style="padding:4px 10px;font-size:11px;letter-spacing:1px;border-color:rgba(255,92,92,0.4);color:var(--red)">スコアリセット</button>
-            </div>
           </div>
           <div id="simple-game-area" style="display:none">
             <div class="score-total-row">
               <div class="score-player">
                 <div class="score-name" id="simple-name-a">A</div>
                 <div class="score-goal" id="simple-goal-a"></div>
-                <div class="score-total score-total-a" id="simple-total-a">0</div>
+                <div class="score-ring score-ring-a">
+                  <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="46"/><circle class="ring-fg" id="simple-arc-a" cx="60" cy="60" r="46" pathLength="100"/></svg>
+                  <div class="ring-score ring-score-a" id="simple-total-a">0</div>
+                </div>
+                <div class="score-remain" id="simple-remain-a"></div>
               </div>
               <div class="score-vs">VS</div>
               <div class="score-player">
                 <div class="score-name" id="simple-name-b">B</div>
                 <div class="score-goal" id="simple-goal-b"></div>
-                <div class="score-total score-total-b" id="simple-total-b">0</div>
+                <div class="score-ring score-ring-b">
+                  <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="46"/><circle class="ring-fg" id="simple-arc-b" cx="60" cy="60" r="46" pathLength="100"/></svg>
+                  <div class="ring-score ring-score-b" id="simple-total-b">0</div>
+                </div>
+                <div class="score-remain" id="simple-remain-b"></div>
               </div>
             </div>
             <div style="padding:0 16px 8px">
@@ -385,7 +414,10 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
                 <span class="guide-bar-icon">👇</span>
                 <span id="simple-guide-text"></span>
               </div>
-              <button class="btn-ghost btn-sm undo-btn" onclick="Score.simpleUndo()" style="width:100%;margin-bottom:6px;font-size:11px">↩ 1手戻る</button>
+              <div style="display:flex;gap:6px;margin-bottom:6px">
+                <button id="simple-undo-btn" class="btn-ghost btn-sm undo-btn" onclick="Score.simpleUndo()" style="flex:1;font-size:11px" disabled>↩ 1手戻る</button>
+                <button id="simple-edit-btn" class="btn-ghost btn-sm" onclick="Score.simpleReset()" style="flex:1;font-size:11px;border-color:rgba(255,92,92,0.4);color:var(--red)">スコアリセット</button>
+              </div>
               <div id="rack-rows"></div>
             </div>
           </div>
@@ -414,19 +446,26 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
             <div class="score-hdr">
               <div class="score-lbl">SCORE</div>
               <button class="btn-ghost btn-sm" onclick="Adv.showLiveStats()" style="padding:4px 10px;font-size:11px;letter-spacing:1px">📊 スタッツ</button>
-              <button class="btn-ghost btn-sm" onclick="Adv.confirmReset()" style="padding:4px 10px;font-size:11px;letter-spacing:1px;border-color:rgba(255,92,92,0.4);color:var(--red)">リセット</button>
             </div>
             <div class="adv-score" style="border:none;border-radius:0;margin-bottom:0">
-              <div class="adv-score-player">
+              <div class="adv-score-player" id="adv-score-player-a">
                 <div class="adv-score-name" id="adv-name-a">A</div>
                 <div class="adv-score-goal" id="adv-goal-a"></div>
-                <div class="adv-score-total adv-score-total-a" id="adv-total-a">0</div>
+                <div class="score-ring score-ring-a">
+                  <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="46"/><circle class="ring-fg" id="adv-arc-a" cx="60" cy="60" r="46" pathLength="100"/></svg>
+                  <div class="ring-score ring-score-a" id="adv-total-a">0</div>
+                </div>
+                <div class="score-remain" id="adv-remain-a"></div>
               </div>
               <div class="score-vs">VS</div>
-              <div class="adv-score-player">
+              <div class="adv-score-player" id="adv-score-player-b">
                 <div class="adv-score-name" id="adv-name-b">B</div>
                 <div class="adv-score-goal" id="adv-goal-b"></div>
-                <div class="adv-score-total adv-score-total-b" id="adv-total-b">0</div>
+                <div class="score-ring score-ring-b">
+                  <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="46"/><circle class="ring-fg" id="adv-arc-b" cx="60" cy="60" r="46" pathLength="100"/></svg>
+                  <div class="ring-score ring-score-b" id="adv-total-b">0</div>
+                </div>
+                <div class="score-remain" id="adv-remain-b"></div>
               </div>
             </div>
           </div>
@@ -445,6 +484,10 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
           <div class="adv-group-row" id="adv-group-row">
             <div class="adv-group-badge" id="adv-group-a">テーブル: OPEN</div>
             <div class="adv-group-badge" id="adv-group-b"></div>
+          </div>
+          <div style="display:flex;gap:6px;margin:6px 16px">
+            <button id="adv-undo-btn" class="btn-ghost btn-sm undo-btn" onclick="Adv.undo()" style="flex:1;font-size:11px" disabled>↩ 1手戻る</button>
+            <button id="adv-reset-btn" class="btn-ghost btn-sm" onclick="Adv.confirmReset()" style="flex:1;font-size:11px;border-color:rgba(255,92,92,0.4);color:var(--red)">スコアリセット</button>
           </div>
           <!-- ブレイクカード -->
           <div class="card" id="adv-break-card"></div>
@@ -466,12 +509,12 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
                 <button class="eight-btn eight-lose" onclick="Adv.confirmEight('jump_out')">8番又は手玉場外</button>
               </div>
             </div>
+            <div id="shot-btns-label" style="font-size:11px;color:var(--text-dim);letter-spacing:2px;text-align:center;margin-top:10px">ターン終了</div>
             <div class="shot-btns" id="shot-btns">
-              <button class="shot-btn shot-miss" onclick="Adv.recordShot('miss')">ターン終了</button>
+              <button class="shot-btn shot-miss" onclick="Adv.recordShot('miss')">シュートミス</button>
               <button class="shot-btn shot-foul" onclick="Adv.recordShot('foul')">ファウル</button>
               <button class="shot-btn shot-safety" onclick="Adv.recordShot('safety')">セーフティ</button>
             </div>
-            <button class="btn-ghost" style="width:100%;margin-top:8px" onclick="Adv.undo()">↩ 1手取り消し</button>
           </div>
           <div class="card">
             <div class="card-title">ラック履歴</div>
@@ -566,10 +609,12 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
     </div>
     <div class="card" style="margin-bottom:16px">
       <div class="form-row">
-        <input class="input" id="reg-name" maxlength="8" type="text" placeholder="プレイヤー名" style="flex:2">
+        <input class="input" id="reg-name" maxlength="40" type="text" placeholder="プレイヤー名" style="flex:2">
         <input class="input input-num" id="reg-fargo" type="number" inputmode="numeric" placeholder="Rate" min="100" max="900" style="flex:1">
+        <button class="btn-ghost btn-sm" onclick="Fargo.openSearch()" title="FargoRate検索">🔍</button>
         <button class="btn-ghost btn-sm" onclick="Players.register()">登録</button>
       </div>
+      <div id="fargo-pending-hint" style="display:none;font-size:10px;color:var(--accent);margin-top:4px;padding-left:2px"></div>
       <div id="player-list"></div>
     </div>
     <div class="section-header">
@@ -601,6 +646,14 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
     <div class="modal-handle"></div>
     <div id="modal-match-content"></div>
     <button id="modal-match-detail-btn" style="display:none;width:100%;margin-top:8px" class="btn-outline" onclick="History.openDetail()">記録詳細を見る</button>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-fargo" onclick="if(event.target===this)UI.closeModal('modal-fargo')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="UI.closeModal('modal-fargo')">✕</button>
+    <div class="modal-title">FargoRate 検索結果</div>
+    <div id="fargo-results" style="max-height:60vh;overflow-y:auto"></div>
   </div>
 </div>
 <div class="modal-overlay" id="modal-detail" onclick="if(event.target===this)UI.closeModal('modal-detail')">
@@ -820,6 +873,22 @@ const State = {
 // UTILS
 // =============================================
 function el(id) { return document.getElementById(id); }
+function updateRing(prefix, side, score, goal) {
+  const arc = el(prefix + '-arc-' + side);
+  if (arc) {
+    const pct = goal > 0 ? Math.min(1, Math.max(0, score / goal)) : 0;
+    arc.style.strokeDasharray = (pct * 100).toFixed(2) + ' 100';
+  }
+  const remain = el(prefix + '-remain-' + side);
+  if (remain) {
+    if (goal > 0) {
+      const r = Math.max(0, goal - score);
+      remain.innerHTML = 'ゴールまで残り <span class="score-remain-val score-remain-val-' + side + '">' + r + '</span> 点';
+    } else {
+      remain.textContent = '';
+    }
+  }
+}
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 const BALLS_LOW = [1,2,3,4,5,6,7];
@@ -971,15 +1040,93 @@ const Nav = {
 // =============================================
 // PLAYERS
 // =============================================
+const Fargo = {
+  API: 'https://dashboard.fargorate.com/api/indexsearch',
+  _pending: null,
+
+  async search(q) {
+    const r = await fetch(this.API + '?q=' + encodeURIComponent(q));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    return (j.value || []).map(v => ({
+      readableId: v.readableId,
+      firstName: v.firstName || '',
+      lastName: v.lastName || '',
+      location: (v.location || '').trim(),
+      effectiveRating: parseInt(v.effectiveRating) || 0,
+    })).filter(p => p.effectiveRating > 0);
+  },
+
+  async openSearch() {
+    const q = el('reg-name').value.trim();
+    if (!q) { UI.toast('検索する名前を入力してください'); return; }
+    const btn = document.querySelector('[onclick="Fargo.openSearch()"]');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+    try {
+      const list = await this.search(q);
+      this.showResults(list);
+    } catch (e) {
+      UI.toast('検索に失敗しました: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
+  },
+
+  async refetch(readableId) {
+    try {
+      const list = await this.search(readableId);
+      const hit = list.find(p => p.readableId === String(readableId));
+      return hit || null;
+    } catch (e) { return null; }
+  },
+
+  showResults(list) {
+    const body = el('fargo-results');
+    if (!list.length) {
+      body.innerHTML = '<div class="empty-state" style="padding:20px">該当なし</div>';
+    } else {
+      body.innerHTML = list.slice(0, 50).map(p => {
+        const full = (p.firstName + ' ' + p.lastName).trim().replace(/'/g, '');
+        return '<div onclick="Fargo.pick(&quot;' + p.readableId + '&quot;,&quot;' + full + '&quot;,' + p.effectiveRating + ')" style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+            '<div style="min-width:0;flex:1"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (p.firstName + ' ' + p.lastName).trim() + '</div>' +
+            '<div style="font-size:11px;color:var(--text-dim)">' + (p.location || '—') + ' · ID:' + p.readableId + '</div></div>' +
+            '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:24px;color:var(--gold);letter-spacing:1px">' + p.effectiveRating + '</div>' +
+          '</div></div>';
+      }).join('');
+    }
+    UI.openModal('modal-fargo');
+  },
+
+  pick(readableId, fullName, rating) {
+    el('reg-name').value = fullName;
+    el('reg-fargo').value = rating;
+    this._pending = { readableId: String(readableId), rating, name: fullName };
+    const hint = el('fargo-pending-hint');
+    if (hint) {
+      hint.textContent = '🔗 ID:' + readableId + '（登録時に保存）';
+      hint.style.display = '';
+    }
+    UI.closeModal('modal-fargo');
+  },
+
+  consumePending() {
+    const p = this._pending;
+    this._pending = null;
+    const hint = el('fargo-pending-hint');
+    if (hint) { hint.textContent = ''; hint.style.display = 'none'; }
+    return p;
+  },
+};
+
 const Players = {
   find(name) { return State.getPlayers().find(p => p.name === name); },
   register() {
     const name = el('reg-name').value.trim();
     const rate = parseInt(el('reg-fargo').value);
     if (!name) { UI.toast('名前を入力してください'); return; }
-    if (name.length > 8) { UI.toast('名前は8文字以内で入力してください'); return; }
-    if (name.length > 8) { UI.toast('名前は8文字以内で入力してください'); return; }
-    if (!rate || rate < 250 || rate > 700) { UI.toast('FargoRateを正しく入力してください（250〜700）'); return; }
+    if (name.length > 40) { UI.toast('名前は40文字以内で入力してください'); return; }
+    if (!rate || rate < 100 || rate > 850) { UI.toast('FargoRateを正しく入力してください（100〜850）'); return; }
     // ゲーム中のプレイヤーの変更を警告
     const simpleInGame = el('simple-game-area') && el('simple-game-area').style.display !== 'none';
     const advInGame = typeof Adv !== 'undefined' && Adv._g !== null;
@@ -993,7 +1140,9 @@ const Players = {
     const players = State.getPlayers();
     const idx = players.findIndex(p => p.name === name);
     const existing = players[idx];
-    const entry = {id: existing?.id || genPlayerId(), name, fargoRate:rate, class:rateToClass(rate).name};
+    const pending = Fargo.consumePending();
+    const readableId = pending?.readableId || existing?.readableId || null;
+    const entry = {id: existing?.id || genPlayerId(), name, fargoRate:rate, class:rateToClass(rate).name, readableId};
     // 新規登録の場合のみ（既存プレイヤーの同名更新はOK）
     if (idx >= 0) {
       // 同名が既に存在 → FargoRateを更新（IDは引き継ぎ）
@@ -1244,9 +1393,8 @@ const Players = {
     const newName = nameInput.value.trim();
     const newRate = parseInt(rateInput.value);
     if (!newName) { UI.toast('名前を入力してください'); return; }
-    if (newName.length > 8) { UI.toast('名前は8文字以内で入力してください'); return; }
-    if (newName.length > 8) { UI.toast('名前は8文字以内で入力してください'); return; }
-    if (!newRate || newRate < 250 || newRate > 700) { UI.toast('FargoRateを正しく入力してください（250〜700）'); return; }
+    if (newName.length > 40) { UI.toast('名前は40文字以内で入力してください'); return; }
+    if (!newRate || newRate < 100 || newRate > 850) { UI.toast('FargoRateを正しく入力してください（100〜850）'); return; }
     const players = State.getPlayers();
     // 同名チェック（自分以外）
     if (newName !== origName && players.find(p => p.name === newName)) {
@@ -1255,7 +1403,7 @@ const Players = {
 
     const idx = players.findIndex(p => p.name === origName);
     if (idx < 0) return;
-    players[idx] = {id: players[idx].id || genPlayerId(), name: newName, fargoRate: newRate, class: rateToClass(newRate).name};
+    players[idx] = {id: players[idx].id || genPlayerId(), name: newName, fargoRate: newRate, class: rateToClass(newRate).name, readableId: players[idx].readableId || null};
     State.setPlayers(players);
     Score.updateSelects();
     this.render();
@@ -1324,6 +1472,8 @@ const Score = {
   },
   onSelectPlayer(side) {
     const name = el('sel-' + side).value;
+    const statusEl = el('fargo-fetch-' + side);
+    if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--text-dim)'; }
     if (!name) return;
     const otherSide = side === 'a' ? 'b' : 'a';
     const otherSel = el('sel-' + otherSide);
@@ -1342,6 +1492,44 @@ const Score = {
     this._syncSelects();
     this._updateSelectPulse();
     try { localStorage.setItem('jcl_sel_' + side, p.name); } catch(e) {}
+    this._autoFetchFargo(side, p);
+  },
+
+  async _autoFetchFargo(side, p) {
+    const statusEl = el('fargo-fetch-' + side);
+    if (!statusEl) return;
+    if (!p.readableId) {
+      statusEl.textContent = '（手動登録）';
+      statusEl.style.color = 'var(--text-dim)';
+      return;
+    }
+    statusEl.textContent = '🔄 取得中…';
+    statusEl.style.color = 'var(--text-dim)';
+    const hit = await Fargo.refetch(p.readableId);
+    if (el('sel-' + side).value !== p.name) return;
+    if (!hit) {
+      statusEl.textContent = '⚠ 取得失敗（登録値使用）';
+      statusEl.style.color = 'var(--red)';
+      return;
+    }
+    const newRate = hit.effectiveRating;
+    if (newRate && newRate !== p.fargoRate) {
+      const players = State.getPlayers();
+      const idx = players.findIndex(x => x.id === p.id);
+      if (idx >= 0) {
+        players[idx] = Object.assign({}, players[idx], { fargoRate: newRate, class: rateToClass(newRate).name });
+        State.setPlayers(players);
+      }
+      const fargoEl = el('fargo-' + side);
+      if (fargoEl) fargoEl.value = newRate;
+      this.onInput();
+      Players.render && Players.render();
+      statusEl.textContent = '✓ 最新 ' + p.fargoRate + ' → ' + newRate;
+      statusEl.style.color = 'var(--green)';
+    } else {
+      statusEl.textContent = '✓ 最新値と一致（' + newRate + '）';
+      statusEl.style.color = 'var(--green)';
+    }
   },
 
   onSelectPlayerAdv(side) {
@@ -1519,12 +1707,16 @@ const Score = {
           '<button class="rack-win-btn" id="win-b-' + i + '" onclick="Score.setWinner(' + i + ',\'b\')" disabled style="width:100%">勝利</button>' +
         '</div>' +
         '<div style="text-align:center">' +
-          '<button class="rack-edit-btn" id="confirm-btn-' + i + '" onclick="Score.confirmRack(' + i + ')" style="display:none;border-color:rgba(76,222,128,0.5);color:var(--green)">確定</button>' +
           '<button class="rack-edit-btn" id="edit-btn-' + i + '" onclick="Score.toggleEdit(' + i + ')" style="display:none">修正</button>' +
         '</div>';
       // RACK1以外は最初は非表示
       if (i > 0) row.style.display = 'none';
       cont.appendChild(row);
+      const confirmSlot = document.createElement('div');
+      confirmSlot.id = 'confirm-slot-' + i;
+      confirmSlot.innerHTML =
+        '<button class="btn-action" id="confirm-btn-' + i + '" onclick="Score.confirmRack(' + i + ')" style="display:none;padding:12px;font-size:14px;letter-spacing:3px;margin:8px 0 4px">✓ 確定</button>';
+      cont.appendChild(confirmSlot);
     }
     this.unlockRack(0);
   },
@@ -1873,10 +2065,40 @@ const Score = {
     }
     el('simple-total-a').textContent = tA;
     el('simple-total-b').textContent = tB;
+    updateRing('simple', 'a', tA, gA);
+    updateRing('simple', 'b', tB, gB);
+    const undoBtn = el('simple-undo-btn');
+    if (undoBtn) {
+      let canUndo = false;
+      const maxR = this._maxRacks || MAX_RACKS;
+      for (let i = 0; i < maxR; i++) {
+        const rd = this._rd[i];
+        if (rd && (rd.winA || rd.winB)) { canUndo = true; break; }
+      }
+      undoBtn.disabled = !canUndo;
+      undoBtn.style.opacity = canUndo ? '' : '0.3';
+    }
     this.checkGoal(tA, tB, gA, gB, goalReached);
   },
   checkGoal(tA, tB, gA, gB, goalReached) {
     if (!goalReached||!gA||!gB) { el('simple-result-card').style.display='none'; return; }
+    // 最終ラックが未確定なら敗者スコア入力待ち
+    if (!this._inScoreEdit && this._editingRack < 0) {
+      const maxR0 = this._maxRacks || MAX_RACKS;
+      let lastIdx0 = -1;
+      for (let i=0; i<maxR0; i++) {
+        const rd0 = this._rd[i];
+        if (!rd0 || (!rd0.winA && !rd0.winB)) break;
+        lastIdx0 = i;
+      }
+      if (lastIdx0 >= 0) {
+        const cbLast0 = el('confirm-btn-' + lastIdx0);
+        if (cbLast0 && cbLast0.style.display !== 'none') {
+          el('simple-result-card').style.display = 'none';
+          return;
+        }
+      }
+    }
     this._goalReached = true; // ゴール到達フラグ
     const {nameA, nameB} = this.getSetup();
     const {winner, jclA, jclB} = calcJCL(tA, tB, gA, gB);
@@ -2239,8 +2461,10 @@ const Score = {
     el('rack-rows').innerHTML = '';
     el('simple-total-a').textContent = '0';
     el('simple-total-b').textContent = '0';
+    updateRing('simple', 'a', 0, 0);
+    updateRing('simple', 'b', 0, 0);
     const editBtn = el('simple-edit-btn');
-    if (editBtn) { editBtn.textContent = 'スコアリセット'; editBtn.onclick = function() { Score.simpleReset(); }; editBtn.style.cssText='padding:4px 10px;font-size:11px;letter-spacing:1px;border-color:rgba(255,92,92,0.4);color:var(--red)'; }
+    if (editBtn) { editBtn.textContent = 'スコアリセット'; editBtn.onclick = function() { Score.simpleReset(); }; editBtn.style.cssText='flex:1;font-size:11px;border-color:rgba(255,92,92,0.4);color:var(--red)'; }
     // 本格スコアUI
     el('adv-start-area').style.display = '';
     el('adv-game-area').style.display = 'none';
@@ -2250,6 +2474,8 @@ const Score = {
     el('adv-inning-card').style.display = 'none';
     el('adv-break-card').innerHTML = '';
     el('adv-total-a').textContent = '0'; el('adv-total-b').textContent = '0';
+    updateRing('adv', 'a', 0, 0);
+    updateRing('adv', 'b', 0, 0);
     el('adv-name-a').textContent = 'A'; el('adv-name-b').textContent = 'B';
     el('adv-rack-hdr').style.display = ''; el('adv-group-row').style.display = '';
     el('adv-guide-bar').style.display = 'none';
@@ -2375,29 +2601,22 @@ const Adv = {
       lPts=Math.min(lPts,7);
       if (r.winner==='A'){tA+=14;tB+=lPts;}else{tB+=14;tA+=lPts;}
     });
-    // 現在ラック：自グループのボールのみスコアに加算
-    const rack = g.currentRack;
-    // ブレイクボーナス（グループ確定時に振り分け済みのボールを加算）
-    tA += (rack._breakBonusA || 0);
-    tB += (rack._breakBonusB || 0);
-    (rack.innings||[]).forEach(i=>{
-      if (i.isBreak) return;
-      const pts = this._countMyPocketed(rack, i);
-      if (i.player==='A') tA+=pts; else tB+=pts;
-    });
-    // 選択中ボール（ブレイク中は加算しない）
-    if (rack.phase !== 'break') {
-      const myBalls = this._myGroupBalls(rack, rack.currentPlayer);
-      [...this._sel].filter(b=>b!==8).forEach(b=>{
-        if (!myBalls || myBalls.includes(b)) {
-          if (rack.currentPlayer==='A') tA++; else tB++;
-        }
-      });
-    }
+    // 現在ラック中はスコアに加算しない（ラック終了時に清算）
     el('adv-total-a').textContent = tA; el('adv-total-b').textContent = tB;
     el('adv-name-a').textContent = g.nameA; el('adv-name-b').textContent = g.nameB;
     el('adv-goal-a').textContent = g.gA ? 'GOAL ' + g.gA : '';
     el('adv-goal-b').textContent = g.gB ? 'GOAL ' + g.gB : '';
+    updateRing('adv', 'a', tA, g.gA);
+    updateRing('adv', 'b', tB, g.gB);
+    const advUndoBtn = el('adv-undo-btn');
+    if (advUndoBtn) {
+      const r = g.currentRack;
+      const canUndo = !!(r && ((r._selHistory && r._selHistory.length > 0)
+        || (r.innings && r.innings.length > 0)
+        || g.racks.length > 0));
+      advUndoBtn.disabled = !canUndo;
+      advUndoBtn.style.opacity = canUndo ? '' : '0.3';
+    }
   },
 
   _updateAdvGuide() {
@@ -2492,8 +2711,20 @@ const Adv = {
     }
   },
 
+  _updateUndoBtn() {
+    const btn = el('adv-undo-btn');
+    if (!btn || !this._g) return;
+    const r = this._g.currentRack;
+    const canUndo = !!(r && ((r._selHistory && r._selHistory.length > 0)
+      || (r.innings && r.innings.length > 0)
+      || this._g.racks.length > 0));
+    btn.disabled = !canUndo;
+    btn.style.opacity = canUndo ? '' : '0.3';
+  },
+
   renderState() {
     if (!this._g) return;
+    this._updateUndoBtn();
     const g=this._g, rack=g.currentRack;
     el('adv-rack-num').textContent = 'RACK ' + String(rack.rack).padStart(2,'0');
     el('adv-inning-num').textContent = 'イニング ' + rack.currentInning;
@@ -2597,6 +2828,7 @@ const Adv = {
       this._tryConfirmGroup();
       this.renderBalls();
     }
+    this._updateUndoBtn();
   },
 
   // ボタン選択時点でグループ確定（8番以外の的玉が選択された時）
@@ -4255,19 +4487,23 @@ JCL・CSIのルールを検索・閲覧できます。<br><br>
   score: {
     title: 'ゲーム開始/スコア',
     content: `<b style="color:var(--text)">基本的な使い方</b><br><br>
-① プレイヤーA・Bを選択<br>
+① プレイヤーA・Bを選択（選択時に最新FargoRateを自動取得）<br>
 ② スコア種別を選択（簡単/本格）<br>
 ③ ゲーム開始を押す<br><br>
+<b style="color:var(--gold)">スコアヘッダーの見方</b><br>
+各プレイヤーの現在点数は円リング内に表示され、ゴール点数に対する達成度が弧の長さで視覚化されます。下部に「ゴールまで残り X 点」を表示。<br><br>
 <b style="color:var(--green)">簡単スコア</b><br>
 各ラックの勝者と敗者の点数を入力します。ゴール到達で自動的に試合結果を表示します。<br>
-・勝利ボタン → 敗者点数入力 → 確定<br>
+・勝利ボタン → 敗者点数入力 → 確定（ラック下段の全幅ボタン）<br>
+・最終セットも勝利→敗者点数入力→確定の順で操作可能<br>
 ・修正ボタンで入力済みラックを修正可能<br>
 ・試合終了後は「スコア変更」で修正できます<br><br>
 <b style="color:var(--green)">本格スコア</b><br>
 ブレイクからイニングごとにポケットしたボールを記録します。<br>
-・ブレイク担当選択 → ボール入力 → ターン終了/ファウル/セーフティ<br>
+・ブレイク担当選択 → ボール入力 → シュートミス/ファウル/セーフティ（ターン終了）<br>
 ・グループはボール選択時に自動確定<br>
-・1手取り消しで操作を戻せます<br><br>本格スコアで入力すると、ランアウト率・8番成功率・ファウル率などの詳細なプレイヤースタッツが記録されます。`,
+・ラック中はスコアが加算されず、ラック終了時に一括反映（勝者14点・敗者は自グループ実ポケ数 最大7点）<br>
+・「1手戻る」で操作を戻せます（未操作時はグレーアウト）<br><br>本格スコアで入力すると、ランアウト率・8番成功率・ファウル率などの詳細なプレイヤースタッツが記録されます。`,
   },
 
   judge: {
@@ -4297,6 +4533,8 @@ JCL・CSIルールに基づいて合法/ファウル/勝敗を判定します。
     content: `<b style="color:var(--text)">プレイヤー登録</b><br><br>
 名前とFargoRateを入力して登録します。同名の場合はRateを更新します。<br>
 プレイヤー名の右の統計ボタンで詳細スタッツを確認できます。<br><br>
+<b style="color:var(--gold)">🔍 FargoRate 検索</b><br>
+名前欄に検索したい氏名（英字）を入力して🔍ボタンを押すと FargoRate データベースから候補を取得します。候補を選択すると、登録名とRateが自動入力され、内部ID（readableId）も保存されます。次回以降ゲーム選択時に最新のRateを自動で取り込みます。<br><br>
 <b style="color:var(--green)">対戦記録</b><br><br>
 試合終了後に自動保存されます。記録をタップで詳細表示。<br><br>
 <b style="color:var(--green)">データ保存/読み込み</b><br><br>
