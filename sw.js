@@ -1,10 +1,11 @@
-const CACHE_NAME = 'jcl8ball-v2.5';
+const CACHE_NAME = 'jcl8ball-v2.6';
 const ASSETS = [
   './',
   './jcl8ball_v2.html',
   './manifest.json',
   'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@400;700&display=swap',
-  'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'
 ];
 
 self.addEventListener('install', e => {
