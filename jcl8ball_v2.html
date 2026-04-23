@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -4183,12 +4183,27 @@ const Scanner = {
   _video: null,
   _canvas: null,
   _ctx: null,
+  _detector: null,
 
   async open() {
-    if (typeof jsQR !== 'function') { UI.toast('QRスキャナの準備ができていません（再読み込み後に再試行）'); return; }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       UI.toast('この端末ではカメラを利用できません');
       return;
+    }
+    const hasNative = 'BarcodeDetector' in window;
+    const hasJsqr = typeof jsQR === 'function';
+    if (!hasNative && !hasJsqr) {
+      UI.toast('QRデコードエンジンが読み込まれていません。再読み込み後に再試行してください。');
+      return;
+    }
+    this._detector = null;
+    if (hasNative) {
+      try {
+        const supported = await BarcodeDetector.getSupportedFormats();
+        if (supported.includes('qr_code')) {
+          this._detector = new BarcodeDetector({ formats: ['qr_code'] });
+        }
+      } catch (e) { /* fall back to jsQR */ }
     }
     this._video = el('scan-video');
     this._canvas = el('scan-canvas');
@@ -4203,7 +4218,8 @@ const Scanner = {
       this._video.srcObject = this._stream;
       this._video.setAttribute('playsinline', 'true');
       await this._video.play();
-      el('scan-status').textContent = 'QRコードを枠内に収めてください';
+      const engine = this._detector ? 'ネイティブ' : 'jsQR';
+      el('scan-status').textContent = 'QRコードを枠内に収めてください（' + engine + '）';
       this._tick();
     } catch (e) {
       console.error('camera error:', e);
@@ -4211,24 +4227,32 @@ const Scanner = {
       if (e.name === 'NotAllowedError') msg = 'カメラへのアクセスが拒否されました。ブラウザの権限設定をご確認ください。';
       else if (e.name === 'NotFoundError') msg = 'カメラが見つかりません。';
       else if (e.name === 'NotReadableError') msg = 'カメラが他のアプリで使用中の可能性があります。';
+      else if (location.protocol !== 'https:' && location.hostname !== 'localhost') msg = 'HTTPS でアクセスしてください（カメラはHTTPSのみ許可）。';
       el('scan-status').textContent = msg;
     }
   },
 
-  _tick() {
+  async _tick() {
     if (!this._stream) return;
     if (this._video.readyState === this._video.HAVE_ENOUGH_DATA) {
       const w = this._video.videoWidth, h = this._video.videoHeight;
       if (w && h) {
-        this._canvas.width = w;
-        this._canvas.height = h;
-        this._ctx.drawImage(this._video, 0, 0, w, h);
         try {
-          const imageData = this._ctx.getImageData(0, 0, w, h);
-          const code = jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
-          if (code && code.data) {
+          let text = null;
+          if (this._detector) {
+            const codes = await this._detector.detect(this._video);
+            if (codes && codes.length) text = codes[0].rawValue;
+          } else {
+            this._canvas.width = w;
+            this._canvas.height = h;
+            this._ctx.drawImage(this._video, 0, 0, w, h);
+            const imageData = this._ctx.getImageData(0, 0, w, h);
+            const code = jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
+            if (code && code.data) text = code.data;
+          }
+          if (text) {
             this.close();
-            Share.handleScannedText(code.data);
+            Share.handleScannedText(text);
             return;
           }
         } catch (e) { /* ignore frame decode errors */ }
