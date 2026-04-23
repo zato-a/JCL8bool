@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -647,6 +648,12 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
     <div style="margin-bottom:12px">
       <button class="btn-ghost btn-sm" onclick="Data.exportCSV()" style="width:100%">📊 CSVで保存</button>
     </div>
+    <div style="margin-bottom:12px">
+      <label class="btn-ghost btn-sm" style="width:100%;text-align:center;cursor:pointer;display:block">
+        📥 共有データを取り込む
+        <input type="file" accept=".json" style="display:none" onchange="Share.handleFile(event)">
+      </label>
+    </div>
     <div id="history-list"></div>
     <div id="history-empty" class="empty-state" style="display:none">対戦記録がありません</div>
     <div style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.8">
@@ -718,6 +725,27 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
     <div id="modal-player-stats-content"></div>
   </div>
 </div>
+<div class="modal-overlay" id="modal-share" onclick="if(event.target===this)UI.closeModal('modal-share')">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="UI.closeModal('modal-share')">✕</button>
+    <div class="modal-title">試合データを共有</div>
+    <div style="font-size:13px;margin-bottom:4px">プレイヤー: <span id="share-player-name" style="font-weight:700"></span></div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px">
+      全試合数: <span id="share-match-total">0</span> 件 / QR送信は直近 <span id="share-qr-limit">0</span> 試合
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn btn-primary btn-sm" id="share-qr-btn" style="flex:1">QR共有（直近5試合）</button>
+      <button class="btn-ghost btn-sm" id="share-json-btn" style="flex:1">JSONで保存（全試合）</button>
+    </div>
+    <div id="share-qr-wrap" style="background:#fff;padding:8px;border-radius:8px;text-align:center"></div>
+    <div id="share-qr-info" style="font-size:10px;color:var(--text-dim);margin-top:6px;text-align:center"></div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:10px;line-height:1.5">
+      ※ 受け取り側は QR を読み取ってアプリURLを開くか、JSONファイルを「共有データを取り込む」から選択してください。<br>
+      ※ 同名プレイヤーがいれば試合のみ追加、いなければ新規登録されます（改ざん検知付き）。
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-confirm" style="align-items:center">
   <div class="confirm-modal">
     <div style="font-size:14px;font-weight:700;margin-bottom:8px" id="confirm-title"></div>
@@ -1354,6 +1382,7 @@ const Players = {
       '<div class="player-rate" data-action="edit" data-player="' + escAttr(p.name) + '" style="cursor:pointer;text-decoration:underline dotted">' + p.fargoRate + '</div>' +
       '<div class="player-class">' + esc(p.class) + '</div>' +
       '<button class="btn-ghost btn-sm" data-action="stats" data-player="' + escAttr(p.name) + '">📊</button>' +
+      '<button class="btn-ghost btn-sm" data-action="share" data-player="' + escAttr(p.name) + '" title="試合データを共有">📤</button>' +
       '<button class="del-btn" data-action="delete" data-player="' + escAttr(p.name) + '">✕</button>' +
       '</div>'
     ).join('');
@@ -1363,6 +1392,7 @@ const Players = {
       const name = t.dataset.player, act = t.dataset.action;
       if (act === 'edit') Players.startEdit(name);
       else if (act === 'stats') Players.openStats(name);
+      else if (act === 'share') Share.openDialog(name);
       else if (act === 'delete') Players.delete(name);
     };
   },
@@ -3944,6 +3974,195 @@ const Data = {
 };
 
 // =============================================
+// SHARE (QR / JSON) - プレイヤー単位の試合共有
+// =============================================
+const Share = {
+  QR_MATCH_LIMIT: 5,
+
+  _buildData(playerName, matchLimit) {
+    const player = State.getPlayers().find(p => p.name === playerName);
+    if (!player) return null;
+    let matches = State.getMatches().filter(m =>
+      (m.playerA && m.playerA.name === playerName) ||
+      (m.playerB && m.playerB.name === playerName)
+    );
+    if (matchLimit && matches.length > matchLimit) matches = matches.slice(0, matchLimit);
+    return {
+      type: 'share',
+      version: 1,
+      exportedAt: new Date().toLocaleString('ja-JP'),
+      player,
+      matches,
+    };
+  },
+
+  async _sign(data) {
+    const payload = JSON.stringify(data);
+    const sig = await signData(payload);
+    return {payload, sig};
+  },
+
+  async _verify(signed) {
+    if (!signed || typeof signed.payload !== 'string' || typeof signed.sig !== 'string') return null;
+    const ok = await verifyData(signed.payload, signed.sig);
+    if (!ok) return null;
+    try { return JSON.parse(signed.payload); } catch(e) { return null; }
+  },
+
+  async _encodeForUrl(signed) {
+    const raw = JSON.stringify(signed);
+    const stream = new Blob([raw]).stream().pipeThrough(new CompressionStream('gzip'));
+    const buf = await new Response(stream).arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  },
+
+  async _decodeFromUrl(s) {
+    let b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const raw = await new Response(stream).text();
+    return JSON.parse(raw);
+  },
+
+  openDialog(playerName) {
+    const player = State.getPlayers().find(p => p.name === playerName);
+    if (!player) { UI.toast('プレイヤーが見つかりません'); return; }
+    const total = State.getMatches().filter(m =>
+      (m.playerA && m.playerA.name === playerName) ||
+      (m.playerB && m.playerB.name === playerName)
+    ).length;
+    el('share-player-name').textContent = playerName;
+    el('share-match-total').textContent = total;
+    el('share-qr-limit').textContent = Math.min(total, this.QR_MATCH_LIMIT);
+    el('share-qr-btn').onclick = () => this.exportQr(playerName);
+    el('share-json-btn').onclick = () => this.exportJson(playerName);
+    el('share-qr-wrap').innerHTML = '';
+    el('share-qr-info').textContent = '';
+    UI.openModal('modal-share');
+  },
+
+  async exportQr(playerName) {
+    try {
+      const data = this._buildData(playerName, this.QR_MATCH_LIMIT);
+      if (!data) { UI.toast('プレイヤーが見つかりません'); return; }
+      if (data.matches.length === 0) { UI.toast('このプレイヤーの試合記録がありません'); return; }
+      const signed = await this._sign(data);
+      const encoded = await this._encodeForUrl(signed);
+      const base = location.origin + location.pathname;
+      const url = base + '#share=' + encoded;
+      if (typeof qrcode !== 'function') { UI.toast('QRライブラリ読み込み失敗'); return; }
+      const qr = qrcode(0, 'M');
+      qr.addData(url);
+      try { qr.make(); } catch(e) { UI.toast('データが大きすぎてQRに収まりません'); return; }
+      const svg = qr.createSvgTag({cellSize: 4, margin: 2, scalable: true});
+      el('share-qr-wrap').innerHTML = svg;
+      const svgEl = el('share-qr-wrap').querySelector('svg');
+      if (svgEl) { svgEl.setAttribute('width', '100%'); svgEl.setAttribute('height', 'auto'); svgEl.style.maxWidth = '320px'; }
+      el('share-qr-info').textContent =
+        playerName + ' / ' + data.matches.length + '試合 / ' + url.length + '文字';
+    } catch (e) {
+      console.error('QR生成エラー:', e);
+      UI.toast('QR生成に失敗しました: ' + e.message);
+    }
+  },
+
+  async exportJson(playerName) {
+    try {
+      const data = this._buildData(playerName, null);
+      if (!data) { UI.toast('プレイヤーが見つかりません'); return; }
+      if (data.matches.length === 0) { UI.toast('このプレイヤーの試合記録がありません'); return; }
+      const signed = await this._sign(data);
+      const blob = new Blob([JSON.stringify(signed, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      const safeName = playerName.replace(/[\\/:*?"<>|]/g, '_');
+      a.href = url;
+      a.download = 'JCL_share_' + safeName + '_' + date + '.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setTimeout(() => UI.toast('JSONを保存しました（' + data.matches.length + '試合）'), 300);
+    } catch (e) {
+      console.error('JSON保存エラー:', e);
+      UI.toast('保存に失敗しました: ' + e.message);
+    }
+  },
+
+  handleFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = '';
+    if (!file.name.endsWith('.json')) { UI.toast('JSONファイルを選択してください'); return; }
+    if (file.size > 5 * 1024 * 1024) { UI.toast('ファイルサイズが大きすぎます（5MB以下）'); return; }
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const signed = JSON.parse(e.target.result);
+        const data = await this._verify(signed);
+        if (!data) { UI.toast('⚠ データが改変されているか、形式が不正です'); return; }
+        if (data.type !== 'share') { UI.toast('試合共有データではありません'); return; }
+        this._confirmAndImport(data);
+      } catch (err) {
+        console.error('共有インポートエラー:', err);
+        UI.toast('読み込みに失敗しました: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  },
+
+  async handleUrlHash() {
+    const m = (location.hash || '').match(/^#share=(.+)$/);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    try {
+      const signed = await this._decodeFromUrl(m[1]);
+      const data = await this._verify(signed);
+      if (!data) { UI.toast('⚠ 共有データの署名検証に失敗しました'); return; }
+      if (data.type !== 'share') { UI.toast('試合共有データではありません'); return; }
+      this._confirmAndImport(data);
+    } catch (e) {
+      console.error('共有URL読み込みエラー:', e);
+      UI.toast('共有データの読み込みに失敗しました');
+    }
+  },
+
+  _confirmAndImport(data) {
+    const p = data.player || {};
+    const existing = State.getPlayers().find(x => x.name === p.name);
+    const mode = existing ? 'merge' : 'new';
+    const msg = existing
+      ? '「' + p.name + '」は既に登録されています。' + data.matches.length + '試合を取り込みますか？（同一IDの試合はスキップされます）'
+      : '新規プレイヤー「' + p.name + '」（Rate ' + (p.fargoRate || '?') + '）を登録し、' + data.matches.length + '試合を取り込みますか？';
+    UI.confirm('試合データの取り込み', msg, () => this._doImport(data, mode));
+  },
+
+  _doImport(data, mode) {
+    const players = State.getPlayers();
+    if (mode === 'new' && data.player) players.push(data.player);
+    const matches = State.getMatches();
+    let added = 0;
+    (data.matches || []).forEach(m => {
+      if (!matches.find(x => x.id === m.id)) {
+        matches.unshift(m);
+        added++;
+      }
+    });
+    matches.sort((a, b) => b.id - a.id);
+    State._d.matches = matches;
+    State.setPlayers(players);
+    if (typeof Score !== 'undefined') Score.updateSelects();
+    Players.render();
+    if (typeof History !== 'undefined') History.render();
+    UI.toast('取り込み完了：' + added + '試合' + (mode === 'new' ? '・新規プレイヤー登録' : ''));
+  },
+};
+
+// =============================================
 // RULES
 // =============================================
 const Rules = {
@@ -4659,6 +4878,8 @@ buildClassTable();
 Score._initUI();
 // 進行中試合の復帰チェック
 setTimeout(()=>Score.checkResume(), 500);
+// 共有URLハッシュのチェック
+setTimeout(()=>Share.handleUrlHash(), 600);
 
 // Service Worker 登録
 if ('serviceWorker' in navigator) {
