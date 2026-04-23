@@ -4051,7 +4051,6 @@ const Share = {
     try {
       const data = this._buildData(playerName, this.QR_MATCH_LIMIT);
       if (!data) { UI.toast('プレイヤーが見つかりません'); return; }
-      if (data.matches.length === 0) { UI.toast('このプレイヤーの試合記録がありません'); return; }
       const signed = await this._sign(data);
       const encoded = await this._encodeForUrl(signed);
       const base = location.origin + location.pathname;
@@ -4076,7 +4075,6 @@ const Share = {
     try {
       const data = this._buildData(playerName, null);
       if (!data) { UI.toast('プレイヤーが見つかりません'); return; }
-      if (data.matches.length === 0) { UI.toast('このプレイヤーの試合記録がありません'); return; }
       const signed = await this._sign(data);
       const blob = new Blob([JSON.stringify(signed, null, 2)], {type: 'application/json'});
       const url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -4135,9 +4133,15 @@ const Share = {
     const p = data.player || {};
     const existing = State.getPlayers().find(x => x.name === p.name);
     const mode = existing ? 'merge' : 'new';
+    const n = (data.matches || []).length;
+    const matchPart = n > 0 ? n + '試合を取り込みますか？（同一IDの試合はスキップされます）' : 'このプレイヤーの試合記録はありません。続行しますか？';
     const msg = existing
-      ? '「' + p.name + '」は既に登録されています。' + data.matches.length + '試合を取り込みますか？（同一IDの試合はスキップされます）'
-      : '新規プレイヤー「' + p.name + '」（Rate ' + (p.fargoRate || '?') + '）を登録し、' + data.matches.length + '試合を取り込みますか？';
+      ? '「' + p.name + '」は既に登録されています。' + matchPart
+      : '新規プレイヤー「' + p.name + '」（Rate ' + (p.fargoRate || '?') + '）を登録します。' + (n > 0 ? n + '試合も一緒に取り込みます。続行しますか？' : '続行しますか？');
+    if (mode === 'merge' && n === 0) {
+      UI.toast('「' + p.name + '」は既に登録済みです');
+      return;
+    }
     UI.confirm('試合データの取り込み', msg, () => this._doImport(data, mode));
   },
 
@@ -4158,7 +4162,10 @@ const Share = {
     if (typeof Score !== 'undefined') Score.updateSelects();
     Players.render();
     if (typeof History !== 'undefined') History.render();
-    UI.toast('取り込み完了：' + added + '試合' + (mode === 'new' ? '・新規プレイヤー登録' : ''));
+    const parts = [];
+    if (mode === 'new') parts.push('新規プレイヤー登録');
+    if (added > 0) parts.push(added + '試合追加');
+    UI.toast('取り込み完了：' + (parts.length ? parts.join('・') : '変更なし'));
   },
 };
 
