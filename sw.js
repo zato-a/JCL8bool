@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jcl8ball-v2.7';
+const CACHE_NAME = 'jcl8ball-v2.8';
 const ASSETS = [
   './',
   './jcl8ball_v2.html',

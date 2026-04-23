@@ -646,11 +646,8 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
       </label>
     </div>
     <div style="margin-bottom:12px">
-      <button class="btn-ghost btn-sm" onclick="Data.exportCSV()" style="width:100%">📊 CSVで保存</button>
-    </div>
-    <div style="margin-bottom:12px">
       <label class="btn-ghost btn-sm" style="width:100%;text-align:center;cursor:pointer;display:block">
-        📥 共有データを取り込む
+        📥 受け取ったデータを読み込む
         <input type="file" accept=".json" style="display:none" onchange="Share.handleFile(event)">
       </label>
     </div>
@@ -740,7 +737,7 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
     <div id="share-qr-wrap" style="background:#fff;padding:8px;border-radius:8px;text-align:center"></div>
     <div id="share-qr-info" style="font-size:10px;color:var(--text-dim);margin-top:6px;text-align:center"></div>
     <div style="font-size:10px;color:var(--text-dim);margin-top:10px;line-height:1.5">
-      ※ 受け取り側は QR を読み取ってアプリURLを開くか、JSONファイルを「共有データを取り込む」から選択してください。<br>
+      ※ 受け取り側は QR を読み取ってアプリURLを開くか、JSONファイルを「受け取ったデータを読み込む」から選択してください。<br>
       ※ 同名プレイヤーがいれば試合のみ追加、いなければ新規登録されます（改ざん検知付き）。
     </div>
   </div>
@@ -3891,24 +3888,6 @@ const Data = {
     a.href=url; a.download='JCL_'+new Date().toISOString().slice(0,10)+'.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     setTimeout(()=>UI.toast('保存しました'),300);
-  },
-  exportCSV() {
-    const matches=State.getMatches();
-    if (matches.length===0) { UI.toast('対戦記録がありません'); return; }
-    const header=['日付','プレイヤーA','FargoA','クラスA','ゴールA','得点A','JCL_A','プレイヤーB','FargoB','クラスB','ゴールB','得点B','JCL_B','勝者','ラック数'];
-    const csvEsc=v=>{const s=String(v??'');return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s;};
-    const rows=matches.map(m=>{
-      const pA=m.playerA||{}, pB=m.playerB||{};
-      const wName=m.winner==='A'?(pA.name||'A'):m.winner==='B'?(pB.name||'B'):'引き分け';
-      return [m.date,pA.name,pA.fargoRate,pA.class,pA.goal,pA.score,pA.jcl,pB.name,pB.fargoRate,pB.class,pB.goal,pB.score,pB.jcl,wName,(m.racks||[]).length].map(csvEsc).join(',');
-    });
-    const bom='\uFEFF';
-    const csv=bom+header.join(',')+'\n'+rows.join('\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-    const url=URL.createObjectURL(blob), a=document.createElement('a');
-    a.href=url; a.download='JCL_'+new Date().toISOString().slice(0,10)+'.csv';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    setTimeout(()=>UI.toast('CSVを保存しました'),300);
   },
   load(event) {
     const file=event.target.files[0]; if (!file) return;
