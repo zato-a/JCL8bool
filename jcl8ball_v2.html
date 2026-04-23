@@ -2729,6 +2729,9 @@ const Adv = {
       || this._g.racks.length > 0));
     btn.disabled = !canUndo;
     btn.style.opacity = canUndo ? '' : '0.3';
+    const row = btn.parentElement;
+    const resultVisible = el('adv-result-card') && el('adv-result-card').style.display !== 'none';
+    if (row) row.style.display = resultVisible ? 'none' : 'flex';
   },
 
   renderState() {
@@ -3421,6 +3424,9 @@ const Adv = {
       const endBtn=document.createElement('button'); endBtn.className='btn-action';
       endBtn.textContent='試合終了・試合結果画面へ'; endBtn.onclick=()=>this.endGame();
       div.appendChild(endBtn);
+      // ゴール到達後は1手戻る/スコアリセット行を非表示（結果確定済のため）
+      const advUndoRow = el('adv-undo-btn') && el('adv-undo-btn').parentElement;
+      if (advUndoRow) advUndoRow.style.display='none';
     } else if (rack.winner) {
       div.innerHTML=headerHtml;
       const nextBtn=document.createElement('button'); nextBtn.className='btn-action';
