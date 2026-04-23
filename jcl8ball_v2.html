@@ -2352,7 +2352,13 @@ const Score = {
     UI.confirm('試合終了','ホームに戻りますか？',()=>{ this.fullReset(); Nav.go('home'); });
   },
   nextMatch(tab) {
-    UI.confirm('次の試合へ','この試合を終了して新しい試合を開始しますか？（記録は保存されます）',()=>{ this.fullReset(); this.switchTab(tab||'simple'); });
+    UI.confirm('次の試合へ','この試合を終了して新しい試合を開始しますか？（記録は保存されます）',()=>{
+      this.fullReset();
+      // プレイヤー設定・モード選択は tab-simple-content 内にあるため、まず simple タブで表示
+      this.switchTab('simple');
+      // モードを復元（本格だった場合は本格モードを選択した状態で表示）
+      if (tab) this.selectMode(tab);
+    });
   },
   fullReset() {
     // 簡単スコア状態リセット
@@ -2480,6 +2486,9 @@ const Score = {
     el('adv-rack-hdr').style.display = ''; el('adv-group-row').style.display = '';
     el('adv-guide-bar').style.display = 'none';
     el('eight-result-area').style.display = 'none'; el('shot-btns').style.display = 'flex';
+    // 1手戻る/スコアリセットの行を再表示
+    const advUndoRow = el('adv-undo-btn') && el('adv-undo-btn').parentElement;
+    if (advUndoRow) advUndoRow.style.display = 'flex';
     // 共通UI
     el('ingame-player-names-simple').style.display = 'none';
     el('ingame-player-names-adv').style.display = 'none';
@@ -3489,6 +3498,9 @@ const Adv = {
     el('adv-rack-hdr').style.display='none'; el('adv-group-row').style.display='none';
     el('adv-break-card').style.display='none'; el('adv-inning-card').style.display='none';
     el('adv-guide-bar').style.display='none';
+    // 1手戻る/スコアリセットの行を非表示
+    const advUndoRow = el('adv-undo-btn') && el('adv-undo-btn').parentElement;
+    if (advUndoRow) advUndoRow.style.display='none';
     const winName=winner==='A'?g.nameA:winner==='B'?g.nameB:'引き分け';
     const sA=this.calcStats(g.racks,'A'), sB=this.calcStats(g.racks,'B');
     const card=el('adv-result-card'); card.style.display='';
