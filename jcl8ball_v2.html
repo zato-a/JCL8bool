@@ -356,6 +356,22 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
             <button id="mode-btn-adv" onclick="Score.selectMode('adv')" class="btn btn-outline" style="flex:1">本格スコア</button>
           </div>
           <div id="mode-desc" style="font-size:12px;color:var(--text);line-height:1.7;padding:8px 10px;background:rgba(255,255,255,0.04);border-radius:8px;margin-bottom:10px;opacity:0;transition:opacity .3s"></div>
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="form-group">
+              <div class="label">ブレイクルール</div>
+              <select class="select" id="sel-break-rule" onchange="Score.onRuleChange()">
+                <option value="alt">交互ブレイク</option>
+                <option value="winner">勝者ブレイク</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <div class="label">ゴール点数</div>
+              <select class="select" id="sel-goal-length" onchange="Score.onRuleChange()">
+                <option value="long">ロング</option>
+                <option value="half">ハーフ</option>
+              </select>
+            </div>
+          </div>
           <button class="btn btn-primary" id="game-start-btn" onclick="Score.gameStart()" disabled style="width:100%;margin-bottom:8px">ゲーム開始</button>
           <div style="display:flex;gap:8px">
             <button class="btn-ghost" style="flex:1;background:rgba(255,255,255,0.04)" onclick="UI.openModal('modal-handicap')">ハンデ表</button>
@@ -1627,16 +1643,34 @@ const Score = {
   },
   getSetup() {
     const rA = parseInt(el('fargo-a').value)||0, rB = parseInt(el('fargo-b').value)||0;
+    const base = calcGoals(rA, rB);
+    const lenSel = el('sel-goal-length');
+    const goalLength = lenSel ? lenSel.value : 'long';
+    if (goalLength === 'half') {
+      if (base.gA) base.gA = Math.ceil(base.gA / 2);
+      if (base.gB) base.gB = Math.ceil(base.gB / 2);
+    }
+    const ruleSel = el('sel-break-rule');
+    const breakRule = ruleSel ? ruleSel.value : 'alt';
     return {
       nameA: el('name-a').value.trim() || 'プレイヤーA',
       nameB: el('name-b').value.trim() || 'プレイヤーB',
       fargoA: rA, fargoB: rB,
-      ...calcGoals(rA, rB),
+      goalLength, breakRule,
+      ...base,
     };
   },
 
   getSetupAdv() {
     return this.getSetup();
+  },
+
+  onRuleChange() {
+    const rule = el('sel-break-rule').value;
+    const len = el('sel-goal-length').value;
+    try { localStorage.setItem('jcl_break_rule', rule); } catch(e) {}
+    try { localStorage.setItem('jcl_goal_length', len); } catch(e) {}
+    this.onInput();
   },
 
   simpleStart() {
@@ -2513,6 +2547,12 @@ const Score = {
       if (s.nameB) el('name-b').value = s.nameB;
       if (s.fargoA) el('fargo-a').value = s.fargoA;
       if (s.fargoB) el('fargo-b').value = s.fargoB;
+    } catch(e) {}
+    try {
+      const rule = localStorage.getItem('jcl_break_rule');
+      if (rule && el('sel-break-rule')) el('sel-break-rule').value = rule;
+      const len = localStorage.getItem('jcl_goal_length');
+      if (len && el('sel-goal-length')) el('sel-goal-length').value = len;
     } catch(e) {}
     this.onInput();
     this._syncSelects();
@@ -3446,7 +3486,12 @@ const Adv = {
     const nextNum=this._g.racks.length+1;
     this._g.currentRack=this._newRack(nextNum);
     let nextBreaker=null;
-    if (this._g.firstBreaker) {
+    const rule = this._g.breakRule || 'alt';
+    if (rule === 'winner') {
+      const prev = this._g.racks[this._g.racks.length-1];
+      if (prev && prev.winner) nextBreaker = prev.winner;
+    }
+    if (!nextBreaker && this._g.firstBreaker) {
       const isOdd=nextNum%2===1;
       nextBreaker=this._g.firstBreaker==='A'?(isOdd?'A':'B'):(isOdd?'B':'A');
     }
