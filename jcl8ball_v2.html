@@ -2216,32 +2216,15 @@ const Score = {
     this._inScoreEdit = false;
   },
   saveRecord() {
-    const setup = this.getSetup();
-    const {nameA, nameB, fargoA, fargoB, gA, gB} = setup;
-    const racks = []; let tA=0, tB=0;
-    for (let i=0; i<MAX_RACKS; i++) {
-      const rd = this._rd[i];
-      if (!rd||(!rd.winA&&!rd.winB)) break;
-      const lose = Math.min(rd.loseVal||0, 7);
-      const sA=rd.winA?14:lose, sB=rd.winB?14:lose;
-      tA+=sA; tB+=sB;
-      racks.push({rack:i+1, scoreA:sA, scoreB:sB, cumulA:tA, cumulB:tB});
-    }
-    const {winner, jclA, jclB} = calcJCL(tA, tB, gA, gB);
-    const cA=fargoA?rateToClass(fargoA).name:'—', cB=fargoB?rateToClass(fargoB).name:'—';
-    const record = {
-      id:Date.now(), date:new Date().toLocaleString('ja-JP'),
-      playerA:{name:nameA,fargoRate:fargoA,class:cA,goal:gA,score:tA,jcl:jclA},
-      playerB:{name:nameB,fargoRate:fargoB,class:cB,goal:gB,score:tB,jcl:jclB},
-      winner, racks, advMatchId: window._lastAdvMatchId||null,
-    };
+    // checkGoal 時点で State.addMatch 済みなので、ここでは JSON エクスポートのみ行う
+    const record = this._savedRecord;
+    if (!record) { UI.toast('保存する記録がありません'); return; }
     const blob = new Blob([JSON.stringify(record,null,2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href=url; a.download='JCL_' + new Date().toISOString().slice(0,10) + '.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    State.addMatch(record); History.render();
-    setTimeout(()=>UI.toast('保存しました'),300);
+    setTimeout(()=>UI.toast('JSONで保存しました'),300);
   },
   simpleUndo() {
     const maxR = this._maxRacks || MAX_RACKS;
