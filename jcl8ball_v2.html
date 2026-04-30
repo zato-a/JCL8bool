@@ -90,10 +90,6 @@ button{cursor:pointer}
 .rack-break{font-size:10px;font-weight:700;letter-spacing:1px;line-height:1}
 .rack-break.rb-a{color:var(--green)}
 .rack-break.rb-b{color:var(--accent)}
-.rack-break-pick{display:flex;gap:3px}
-.rack-break-pick button{font-size:9px;padding:2px 5px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;line-height:1;font-weight:700}
-.rack-break-pick button.rbp-a{border-color:rgba(76,222,128,0.5);color:var(--green)}
-.rack-break-pick button.rbp-b{border-color:rgba(0,229,255,0.5);color:var(--accent)}
 .rack-row.current{background:rgba(76,222,128,0.08);border-left:3px solid var(--green);padding-left:13px;animation:neon-pulse-green 3s ease-in-out infinite}
 .rack-row.current .rack-num{color:var(--green);font-weight:700}
 .guide-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;margin-bottom:8px;background:rgba(76,222,128,0.06);border:1px solid rgba(76,222,128,0.2);border-radius:var(--r-sm);font-size:12px;color:var(--green);min-height:36px}
@@ -442,6 +438,7 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
                 <button id="simple-undo-btn" class="btn-ghost btn-sm undo-btn" onclick="Score.simpleUndo()" style="flex:1;font-size:11px" disabled>↩ 1手戻る</button>
                 <button id="simple-edit-btn" class="btn-ghost btn-sm" onclick="Score.simpleReset()" style="flex:1;font-size:11px;border-color:rgba(255,92,92,0.4);color:var(--red)">スコアリセット</button>
               </div>
+              <div class="card" id="simple-break-pick-card" style="display:none;margin-bottom:8px"></div>
               <div id="rack-rows"></div>
             </div>
           </div>
@@ -1680,6 +1677,7 @@ const Score = {
     }
     this._recomputeBreaks();
     this._renderAllRackBreaks();
+    this._renderSimpleBreakPickCard();
     this.unlockRack(0);
     this._updateRack1BreakGate();
   },
@@ -1716,15 +1714,6 @@ const Score = {
     const cell = el('rack-break-' + i);
     if (!cell) return;
     const rd = this._rd && this._rd[i];
-    // ラック0でブレイカー未選択 → 選択ボタン表示
-    if (i === 0 && !this._firstBreaker) {
-      cell.innerHTML =
-        '<div class="rack-break-pick">' +
-          '<button class="rbp-a" onclick="Score.setSimpleBreakBy(\'A\')">A</button>' +
-          '<button class="rbp-b" onclick="Score.setSimpleBreakBy(\'B\')">B</button>' +
-        '</div>';
-      return;
-    }
     const breakBy = rd && rd.breakBy;
     if (breakBy === 'A' || breakBy === 'B') {
       cell.innerHTML = '<span class="rack-break ' + (breakBy === 'A' ? 'rb-a' : 'rb-b') + '">🎱' + breakBy + '</span>';
@@ -1738,11 +1727,30 @@ const Score = {
     for (let i = 0; i < maxR; i++) this._renderRackBreak(i);
   },
 
+  _renderSimpleBreakPickCard() {
+    const card = el('simple-break-pick-card');
+    if (!card) return;
+    // 表示条件：ゲーム中で _firstBreaker 未確定、かつ修正/スコア変更モードでない
+    const inGame = el('simple-game-area') && el('simple-game-area').style.display !== 'none';
+    const editing = this._editingRack >= 0 || this._inScoreEdit;
+    if (!inGame || this._firstBreaker || editing) { card.style.display = 'none'; card.innerHTML = ''; return; }
+    const {nameA, nameB} = this.getSetup();
+    card.style.display = '';
+    card.innerHTML =
+      '<div class="card-title">RACK01 ブレイク担当</div>' +
+      '<div class="ball-group-label">どちらが先攻でブレイクしますか？</div>' +
+      '<div class="break-row">' +
+        '<button class="break-btn" id="simple-break-pick-A" onclick="Score.setSimpleBreakBy(\'A\')">' + esc(nameA) + '</button>' +
+        '<button class="break-btn" id="simple-break-pick-B" onclick="Score.setSimpleBreakBy(\'B\')">' + esc(nameB) + '</button>' +
+      '</div>';
+  },
+
   setSimpleBreakBy(p) {
     if (p !== 'A' && p !== 'B') return;
     this._firstBreaker = p;
     this._recomputeBreaks();
     this._renderAllRackBreaks();
+    this._renderSimpleBreakPickCard();
     this._updateRack1BreakGate();
   },
 
@@ -2453,6 +2461,7 @@ const Score = {
       this.unlockRack(this._rd.length);
       this._recomputeBreaks();
       this._renderAllRackBreaks();
+      this._renderSimpleBreakPickCard();
       this._updateRack1BreakGate();
       this.updateTotals();
       this._updateSimpleGuide();
@@ -2496,6 +2505,8 @@ const Score = {
     el('simple-result-card').style.display = 'none';
     el('simple-result-card').innerHTML = '';
     el('rack-rows').innerHTML = '';
+    const breakCard = el('simple-break-pick-card');
+    if (breakCard) { breakCard.style.display = 'none'; breakCard.innerHTML = ''; }
     el('simple-total-a').textContent = '0';
     el('simple-total-b').textContent = '0';
     updateRing('simple', 'a', 0, 0);
