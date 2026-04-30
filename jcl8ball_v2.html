@@ -2164,37 +2164,27 @@ const Score = {
       const bA = el('win-a-' + pendingIdx), bB = el('win-b-' + pendingIdx);
       if (bA) { bA.disabled = false; bA.style.pointerEvents = ''; }
       if (bB) { bB.disabled = false; bB.style.pointerEvents = ''; }
-    } else if (curIdx > 0) {
-      // ケース②：現在のラックが未入力 → 1つ前の確定を解除
-      const prevIdx = curIdx - 1;
-      const curRow = el('rack-row-' + curIdx);
-      if (curRow) curRow.style.display = 'none';
+    } else if (curIdx > 0 || (curIdx === 0 && this._rd[0] && (this._rd[0].winA || this._rd[0].winB))) {
+      // ケース②：直前ラックが確定済み → そのラックを完全リセット（勝者・敗者点数・ロック状態すべて）
+      const prevIdx = curIdx > 0 ? curIdx - 1 : 0;
+      // 次ラック以降を非表示・データクリア
+      const maxR = this._maxRacks || MAX_RACKS;
+      for (let j = prevIdx + 1; j < maxR; j++) {
+        if (this._rd[j]) { this._rd[j].winA = false; this._rd[j].winB = false; this._rd[j].loseVal = 0; }
+        const row = el('rack-row-' + j);
+        if (row) row.style.display = 'none';
+      }
+      // 直前ラックをリセット
+      const rd = this._rd[prevIdx];
+      if (rd) { rd.winA = false; rd.winB = false; rd.loseVal = 0; }
+      this._renderRackCells(prevIdx);
       const bA = el('win-a-' + prevIdx), bB = el('win-b-' + prevIdx);
-      if (bA) { bA.disabled = false; bA.style.pointerEvents = ''; }
-      if (bB) { bB.disabled = false; bB.style.pointerEvents = ''; }
-      const inp = el('lose-' + prevIdx);
-      if (inp) { inp.disabled = false; inp.style.opacity = ''; }
+      if (bA) { bA.disabled = false; bA.style.pointerEvents = ''; bA.style.opacity = ''; }
+      if (bB) { bB.disabled = false; bB.style.pointerEvents = ''; bB.style.opacity = ''; }
       const eb = el('edit-btn-' + prevIdx);
       if (eb) eb.style.display = 'none';
       const cb = el('confirm-btn-' + prevIdx);
-      if (cb) cb.style.display = '';
-    } else if (curIdx === 0) {
-      // ケース③：RACK1が入力済み（確定済み）→ RACK1の確定を解除
-      const rd = this._rd[0];
-      if (rd && (rd.winA || rd.winB)) {
-        const bA = el('win-a-0'), bB = el('win-b-0');
-        if (bA) { bA.disabled = false; bA.style.pointerEvents = ''; }
-        if (bB) { bB.disabled = false; bB.style.pointerEvents = ''; }
-        const inp = el('lose-0');
-        if (inp) { inp.disabled = false; inp.style.opacity = ''; }
-        const eb = el('edit-btn-0');
-        if (eb) eb.style.display = 'none';
-        const cb = el('confirm-btn-0');
-        if (cb) cb.style.display = '';
-      } else {
-        UI.toast('これ以上戻れません');
-        return;
-      }
+      if (cb) cb.style.display = 'none';
     } else {
       UI.toast('これ以上戻れません');
       return;
