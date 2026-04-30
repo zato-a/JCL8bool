@@ -84,8 +84,16 @@ button{cursor:pointer}
 .score-remain-val-a{color:var(--green)}
 .score-remain-val-b{color:var(--accent)}
 .score-vs{font-family:"Bebas Neue",sans-serif;font-size:20px;color:var(--text-dim);padding:0 12px;align-self:flex-end;padding-bottom:8px}
-.rack-row-header{display:grid;grid-template-columns:56px 1fr 24px 1fr 44px;padding:4px 16px;font-size:10px;color:var(--text-dim);letter-spacing:1px}
-.rack-row{display:grid;grid-template-columns:56px 1fr 24px 1fr 44px;padding:4px 16px;border-top:1px solid var(--border);align-items:center}
+.rack-row-header{display:grid;grid-template-columns:64px 1fr 24px 1fr 44px;padding:4px 16px;font-size:10px;color:var(--text-dim);letter-spacing:1px}
+.rack-row{display:grid;grid-template-columns:64px 1fr 24px 1fr 44px;padding:4px 16px;border-top:1px solid var(--border);align-items:center}
+.rack-num-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.rack-break{font-size:10px;font-weight:700;letter-spacing:1px;line-height:1}
+.rack-break.rb-a{color:var(--green)}
+.rack-break.rb-b{color:var(--accent)}
+.rack-break-pick{display:flex;gap:3px}
+.rack-break-pick button{font-size:9px;padding:2px 5px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;line-height:1;font-weight:700}
+.rack-break-pick button.rbp-a{border-color:rgba(76,222,128,0.5);color:var(--green)}
+.rack-break-pick button.rbp-b{border-color:rgba(0,229,255,0.5);color:var(--accent)}
 .rack-row.current{background:rgba(76,222,128,0.08);border-left:3px solid var(--green);padding-left:13px;animation:neon-pulse-green 3s ease-in-out infinite}
 .rack-row.current .rack-num{color:var(--green);font-weight:700}
 .guide-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;margin-bottom:8px;background:rgba(76,222,128,0.06);border:1px solid rgba(76,222,128,0.2);border-radius:var(--r-sm);font-size:12px;color:var(--green);min-height:36px}
@@ -1604,7 +1612,8 @@ const Score = {
     // 最大ラック数：両者がゴールに達するまでの理論上の上限
     // 毎回勝者14点・敗者0点の場合 = ceil(gA/14) + ceil(gB/14) - 1
     this._maxRacks = (gA && gB) ? Math.min(Math.ceil(gA/14) + Math.ceil(gB/14) - 1, MAX_RACKS) : MAX_RACKS;
-    this._rd = Array(this._maxRacks).fill(null).map(() => ({winA:false,winB:false,loseVal:0}));
+    this._rd = Array(this._maxRacks).fill(null).map(() => ({winA:false,winB:false,loseVal:0,breakBy:null}));
+    this._firstBreaker = null;
     this._savedRecord = null;
     this._goalReached = false;
     this._inScoreEdit = false;
@@ -1646,7 +1655,10 @@ const Score = {
       // A列：勝利ボタン or 負け点数入力欄
       // B列：勝利ボタン or 負け点数入力欄
       row.innerHTML =
-        '<div class="rack-num">RACK' + String(i+1).padStart(2,'0') + '</div>' +
+        '<div class="rack-num-wrap">' +
+          '<div class="rack-num">RACK' + String(i+1).padStart(2,'0') + '</div>' +
+          '<div id="rack-break-' + i + '"></div>' +
+        '</div>' +
         '<div class="rack-cell" id="cell-a-' + i + '" style="text-align:center">' +
           '<button class="rack-win-btn" id="win-a-' + i + '" onclick="Score.setWinner(' + i + ',\'a\')" disabled style="width:100%">勝利</button>' +
         '</div>' +
@@ -1666,8 +1678,82 @@ const Score = {
         '<button class="btn-action" id="confirm-btn-' + i + '" onclick="Score.confirmRack(' + i + ')" style="display:none;padding:12px;font-size:14px;letter-spacing:3px;margin:8px 0 4px">✓ 確定</button>';
       cont.appendChild(confirmSlot);
     }
+    this._recomputeBreaks();
+    this._renderAllRackBreaks();
     this.unlockRack(0);
+    this._updateRack1BreakGate();
   },
+
+  // ブレイク担当の決定（簡単スコア専用）
+  _recomputeBreaks() {
+    const maxR = this._maxRacks || MAX_RACKS;
+    const setup = this.getSetup();
+    const rule = (setup && setup.breakRule) || 'alt';
+    if (!this._rd) return;
+    // ラック0は this._firstBreaker がソース
+    if (this._rd[0]) this._rd[0].breakBy = this._firstBreaker || null;
+    for (let i = 1; i < maxR; i++) {
+      if (!this._rd[i]) continue;
+      if (rule === 'alt') {
+        if (this._firstBreaker) {
+          this._rd[i].breakBy = (i % 2 === 0) ? this._firstBreaker : (this._firstBreaker === 'A' ? 'B' : 'A');
+        } else {
+          this._rd[i].breakBy = null;
+        }
+      } else {
+        // winner: 直前ラックの勝者がブレイク
+        const prev = this._rd[i - 1];
+        if (prev && (prev.winA || prev.winB)) {
+          this._rd[i].breakBy = prev.winA ? 'A' : 'B';
+        } else {
+          this._rd[i].breakBy = null;
+        }
+      }
+    }
+  },
+
+  _renderRackBreak(i) {
+    const cell = el('rack-break-' + i);
+    if (!cell) return;
+    const rd = this._rd && this._rd[i];
+    // ラック0でブレイカー未選択 → 選択ボタン表示
+    if (i === 0 && !this._firstBreaker) {
+      cell.innerHTML =
+        '<div class="rack-break-pick">' +
+          '<button class="rbp-a" onclick="Score.setSimpleBreakBy(\'A\')">A</button>' +
+          '<button class="rbp-b" onclick="Score.setSimpleBreakBy(\'B\')">B</button>' +
+        '</div>';
+      return;
+    }
+    const breakBy = rd && rd.breakBy;
+    if (breakBy === 'A' || breakBy === 'B') {
+      cell.innerHTML = '<span class="rack-break ' + (breakBy === 'A' ? 'rb-a' : 'rb-b') + '">🎱' + breakBy + '</span>';
+    } else {
+      cell.innerHTML = '';
+    }
+  },
+
+  _renderAllRackBreaks() {
+    const maxR = this._maxRacks || MAX_RACKS;
+    for (let i = 0; i < maxR; i++) this._renderRackBreak(i);
+  },
+
+  setSimpleBreakBy(p) {
+    if (p !== 'A' && p !== 'B') return;
+    this._firstBreaker = p;
+    this._recomputeBreaks();
+    this._renderAllRackBreaks();
+    this._updateRack1BreakGate();
+  },
+
+  _updateRack1BreakGate() {
+    // ラック1のブレイカーが未選択なら勝利ボタンを抑制
+    const bA = el('win-a-0'), bB = el('win-b-0');
+    const lock = !this._firstBreaker;
+    if (bA) { bA.disabled = lock; bA.style.pointerEvents = lock ? 'none' : ''; bA.style.opacity = lock ? '0.3' : ''; }
+    if (bB) { bB.disabled = lock; bB.style.pointerEvents = lock ? 'none' : ''; bB.style.opacity = lock ? '0.3' : ''; }
+  },
+
   unlockRack(i) {
     const maxR = this._maxRacks || MAX_RACKS;
     if (i >= maxR) return;
@@ -1677,6 +1763,8 @@ const Score = {
     const bA = el('win-a-' + i), bB = el('win-b-' + i);
     if (bA) { bA.disabled = false; bA.style.pointerEvents = ''; }
     if (bB) { bB.disabled = false; bB.style.pointerEvents = ''; }
+    // ラック0でブレイカー未選択ならボタンをロック
+    if (i === 0) this._updateRack1BreakGate();
     this._updateCurrentRack();
     this._updateSimpleGuide();
   },
@@ -1817,6 +1905,8 @@ const Score = {
       }
 
       this.updateTotals();
+      this._recomputeBreaks();
+      this._renderAllRackBreaks();
       this._updateCurrentRack();
       this._updateSimpleGuide();
       return;
@@ -1897,6 +1987,8 @@ const Score = {
     this._lockRack(i); // ここで修正ボタンも表示される
     this._goalReached = false;
     this.updateTotals();
+    this._recomputeBreaks();
+    this._renderAllRackBreaks();
     if (!this._goalReached) {
       this.unlockRack(i + 1);
     }
@@ -2066,7 +2158,7 @@ const Score = {
     const cA=fargoA?rateToClass(fargoA).name:'—', cB=fargoB?rateToClass(fargoB).name:'—';
     const racks=[], gS=this.getSetup(); let cA2=0,cB2=0;
     const maxRacks = this._maxRacks || MAX_RACKS;
-    for (let i=0;i<maxRacks;i++){const rd=this._rd[i];if(!rd||(!rd.winA&&!rd.winB))break;const lose=Math.min(rd.loseVal||0,7);const sA=rd.winA?14:lose,sB=rd.winB?14:lose;cA2+=sA;cB2+=sB;racks.push({rack:i+1,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2});}
+    for (let i=0;i<maxRacks;i++){const rd=this._rd[i];if(!rd||(!rd.winA&&!rd.winB))break;const lose=Math.min(rd.loseVal||0,7);const sA=rd.winA?14:lose,sB=rd.winB?14:lose;cA2+=sA;cB2+=sB;racks.push({rack:i+1,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2,breakBy:rd.breakBy||null});}
     if (!this._savedRecord) {
       // 新規保存
       this._savedRecord = {id:Date.now(),date:new Date().toLocaleString('ja-JP'),
@@ -2204,6 +2296,9 @@ const Score = {
 
     this._goalReached = false;
     this.updateTotals();
+    this._recomputeBreaks();
+    this._renderAllRackBreaks();
+    this._updateRack1BreakGate();
     this._updateCurrentRack();
     this._updateSimpleGuide();
   },
@@ -2261,6 +2356,7 @@ const Score = {
 
   _simpleResetSilent() {
     this._rd = [];
+    this._firstBreaker = null;
     this._savedRecord = null;
     this._editingRack = -1;
     this._inScoreEdit = false;
@@ -2293,6 +2389,7 @@ const Score = {
   fullReset() {
     // 簡単スコア状態リセット
     this._rd = [];
+    this._firstBreaker = null;
     this._savedRecord = null;
     this._editingRack = -1;
     this._inScoreEdit = false;
@@ -2312,7 +2409,7 @@ const Score = {
     if (!simpleInGame && !advInGame) { State.clearInProgress(); return; }
     const setup = this.getSetup();
     if (simpleInGame) {
-      State.saveInProgress({mode:'simple', setup, rd:this._rd, maxRacks:this._maxRacks, goalReached:this._goalReached});
+      State.saveInProgress({mode:'simple', setup, rd:this._rd, maxRacks:this._maxRacks, goalReached:this._goalReached, firstBreaker:this._firstBreaker||null});
     } else if (advInGame) {
       State.saveInProgress({mode:'adv', game:Adv._g, sel:[...Adv._sel]});
     }
@@ -2337,6 +2434,7 @@ const Score = {
       this.onInput();
       this._maxRacks = data.maxRacks || MAX_RACKS;
       this._rd = data.rd || [];
+      this._firstBreaker = data.firstBreaker || null;
       this._goalReached = data.goalReached || false;
       el('simple-start-area').style.display = 'none';
       el('simple-game-area').style.display = '';
@@ -2353,6 +2451,9 @@ const Score = {
         }
       }
       this.unlockRack(this._rd.length);
+      this._recomputeBreaks();
+      this._renderAllRackBreaks();
+      this._updateRack1BreakGate();
       this.updateTotals();
       this._updateSimpleGuide();
       Nav.go('score');
@@ -3438,13 +3539,13 @@ const Adv = {
     // simpleRacks変換
     let cA2=0,cB2=0;
     const simRacks=g.racks.map(r=>{
-      if (!r.winner) return {rack:r.rack,scoreA:0,scoreB:0,cumulA:0,cumulB:0};
+      if (!r.winner) return {rack:r.rack,scoreA:0,scoreB:0,cumulA:0,cumulB:0,breakBy:r.breakBy||null};
       const loser=r.winner==='A'?'B':'A'; let lPts=0;
       (r.innings||[]).filter(i=>i.player===loser&&!i.isBreak).forEach(i=>{ lPts+=(i.pocketed||[]).filter(b=>b!==8).length; });
       lPts=Math.min(lPts,7);
       const sA=r.winner==='A'?14:lPts, sB=r.winner==='B'?14:lPts;
       cA2+=sA; cB2+=sB;
-      return {rack:r.rack,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2};
+      return {rack:r.rack,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2,breakBy:r.breakBy||null};
     });
     const matchRecord={id:Date.now()+1,date:advRecord.date,playerA:{name:g.nameA,fargoRate:g.fargoA,class:cA,goal:g.gA,score:tA,jcl:jclA},playerB:{name:g.nameB,fargoRate:g.fargoB,class:cB,goal:g.gB,score:tB,jcl:jclB},winner,racks:simRacks,advMatchId:advId};
     State.addMatch(matchRecord);
@@ -3656,8 +3757,13 @@ const History = {
     const aW=m.winner==='A', bW=m.winner==='B', wN=aW?pA:bW?pB:'引き分け';
     const racks=(m.racks||[]).map(r=>{
       const wA=r.scoreA===14, wB=r.scoreB===14;
+      const bb=r.breakBy;
+      const breakHtml = (bb==='A'||bb==='B')
+        ? '<span style="color:'+(bb==='A'?'var(--green)':'var(--accent)')+';font-size:10px;font-weight:700;min-width:30px">🎱'+bb+'</span>'
+        : '<span style="min-width:30px"></span>';
       return '<div class="rack-hist-row">' +
         '<span style="color:var(--text-dim);min-width:56px">RACK'+String(r.rack).padStart(2,'0')+'</span>' +
+        breakHtml +
         '<span style="color:'+(wA?'var(--green)':'var(--text-dim)')+'">'+r.scoreA+'</span>' +
         '<span style="color:var(--text-dim)">-</span>' +
         '<span style="color:'+(wB?'var(--accent)':'var(--text-dim)')+'">'+r.scoreB+'</span>' +
