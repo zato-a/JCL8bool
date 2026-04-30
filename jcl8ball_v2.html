@@ -90,6 +90,11 @@ button{cursor:pointer}
 .rack-break{font-size:10px;font-weight:700;letter-spacing:1px;line-height:1}
 .rack-break.rb-a{color:var(--green)}
 .rack-break.rb-b{color:var(--accent)}
+.flag-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px;padding:0 2px;justify-content:center}
+.flag-chip{display:inline-flex;align-items:center;padding:4px 9px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;user-select:none;transition:all .15s}
+.flag-chip:hover{border-color:rgba(245,200,66,0.4)}
+.flag-chip.on{border-color:var(--gold);color:var(--gold);background:rgba(245,200,66,0.12)}
+.flag-chip.disabled{opacity:0.35;cursor:not-allowed;pointer-events:none}
 .rack-row.current{background:rgba(76,222,128,0.08);border-left:3px solid var(--green);padding-left:13px;animation:neon-pulse-green 3s ease-in-out infinite}
 .rack-row.current .rack-num{color:var(--green);font-weight:700}
 .guide-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;margin-bottom:8px;background:rgba(76,222,128,0.06);border:1px solid rgba(76,222,128,0.2);border-radius:var(--r-sm);font-size:12px;color:var(--green);min-height:36px}
@@ -1154,18 +1159,36 @@ const Players = {
     // 簡単スコアサマリー
     if (sim.length > 0) {
       let sw=0,sl=0,rw=0,rl=0;
+      let bnr=0, tr=0, wz=0, wob=0;
       sim.forEach(m => {
         const isA = m.playerA?.name === name;
         if ((isA && m.winner==='A')||(!isA && m.winner==='B')) sw++; else sl++;
-        (m.racks||[]).forEach(r => { const w=isA?r.scoreA===14:r.scoreB===14; if(w)rw++;else rl++; });
+        (m.racks||[]).forEach(r => {
+          const w=isA?r.scoreA===14:r.scoreB===14;
+          if(w) {
+            rw++;
+            if (r.flags) {
+              if (r.flags.bnr) bnr++;
+              if (r.flags.tableRun) tr++;
+              if (r.flags.winZip) wz++;
+              if (r.flags.winOnBreak) wob++;
+            }
+          } else rl++;
+        });
       });
       const rt = rw+rl;
       contHtml += '<div class="card" style="margin-bottom:12px">' +
-        '<div class="card-title">簡単スコア 対戦成績（' + sim.length + '試合）</div>' +
+        '<div class="card-title">対戦成績（' + sim.length + '試合）</div>' +
         '<div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">' +
         '<div class="stats-card"><div class="stats-label">試合 勝/負</div><div class="stats-val" style="color:var(--green)">' + sw + '<span style="font-size:14px;color:var(--text-dim)">/' + sl + '</span></div></div>' +
         '<div class="stats-card"><div class="stats-label">ラック 勝/負</div><div class="stats-val">' + rw + '<span style="font-size:14px;color:var(--text-dim)">/' + rl + '</span></div></div>' +
         '<div class="stats-card"><div class="stats-label">ラック勝率</div><div class="stats-val">' + (rt>0?Math.round(rw/rt*100):'-') + '<span style="font-size:14px;color:var(--text-dim)">%</span></div></div>' +
+        '</div>' +
+        '<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-top:8px">' +
+        '<div class="stats-card"><div class="stats-label">B&amp;R</div><div class="stats-val" style="color:var(--gold)">' + bnr + '</div></div>' +
+        '<div class="stats-card"><div class="stats-label">Table Run</div><div class="stats-val" style="color:var(--gold)">' + tr + '</div></div>' +
+        '<div class="stats-card"><div class="stats-label">Win-Zip</div><div class="stats-val" style="color:var(--gold)">' + wz + '</div></div>' +
+        '<div class="stats-card"><div class="stats-label">Win-on-Break</div><div class="stats-val" style="color:var(--gold)">' + wob + '</div></div>' +
         '</div></div>';
     }
     if (adv.length === 0) {
@@ -1609,7 +1632,7 @@ const Score = {
     // 最大ラック数：両者がゴールに達するまでの理論上の上限
     // 毎回勝者14点・敗者0点の場合 = ceil(gA/14) + ceil(gB/14) - 1
     this._maxRacks = (gA && gB) ? Math.min(Math.ceil(gA/14) + Math.ceil(gB/14) - 1, MAX_RACKS) : MAX_RACKS;
-    this._rd = Array(this._maxRacks).fill(null).map(() => ({winA:false,winB:false,loseVal:0,breakBy:null}));
+    this._rd = Array(this._maxRacks).fill(null).map(() => ({winA:false,winB:false,loseVal:0,breakBy:null,flags:{bnr:false,tableRun:false,winZip:false,winOnBreak:false}}));
     this._firstBreaker = null;
     this._savedRecord = null;
     this._goalReached = false;
@@ -1672,6 +1695,12 @@ const Score = {
       const confirmSlot = document.createElement('div');
       confirmSlot.id = 'confirm-slot-' + i;
       confirmSlot.innerHTML =
+        '<div class="flag-row" id="flag-row-' + i + '" style="display:none">' +
+          '<div class="flag-chip" data-flag="bnr" onclick="Score.toggleFlag(' + i + ',\'bnr\')">B&amp;R</div>' +
+          '<div class="flag-chip" data-flag="tableRun" onclick="Score.toggleFlag(' + i + ',\'tableRun\')">Table Run</div>' +
+          '<div class="flag-chip" data-flag="winZip" onclick="Score.toggleFlag(' + i + ',\'winZip\')">Win-Zip</div>' +
+          '<div class="flag-chip" data-flag="winOnBreak" onclick="Score.toggleFlag(' + i + ',\'winOnBreak\')">Win-on-Break</div>' +
+        '</div>' +
         '<button class="btn-action" id="confirm-btn-' + i + '" onclick="Score.confirmRack(' + i + ')" style="display:none;padding:12px;font-size:14px;letter-spacing:3px;margin:8px 0 4px">✓ 確定</button>';
       cont.appendChild(confirmSlot);
     }
@@ -1752,6 +1781,33 @@ const Score = {
     this._renderAllRackBreaks();
     this._renderSimpleBreakPickCard();
     this._updateRack1BreakGate();
+  },
+
+  toggleFlag(i, flag) {
+    const rd = this._rd && this._rd[i];
+    if (!rd) return;
+    if (!rd.flags) rd.flags = {bnr:false,tableRun:false,winZip:false,winOnBreak:false};
+    rd.flags[flag] = !rd.flags[flag];
+    this._renderFlagChips(i);
+    this.autoSave && this.autoSave();
+  },
+
+  _renderFlagChips(i) {
+    const row = el('flag-row-' + i);
+    if (!row) return;
+    const rd = this._rd && this._rd[i];
+    const flags = (rd && rd.flags) || {};
+    row.querySelectorAll('.flag-chip').forEach(chip => {
+      const f = chip.dataset.flag;
+      chip.classList.toggle('on', !!flags[f]);
+    });
+  },
+
+  _showFlagRow(i, show) {
+    const row = el('flag-row-' + i);
+    if (!row) return;
+    row.style.display = show ? '' : 'none';
+    if (show) this._renderFlagChips(i);
   },
 
   _updateRack1BreakGate() {
@@ -1880,6 +1936,8 @@ const Score = {
     // 勝者ボタン再押し → 取り消し
     if ((side==='a' && rd.winA) || (side==='b' && rd.winB)) {
       rd.winA = false; rd.winB = false; rd.loseVal = 0;
+      if (rd.flags) { rd.flags.bnr=false; rd.flags.tableRun=false; rd.flags.winZip=false; rd.flags.winOnBreak=false; }
+      this._showFlagRow(i, false);
 
       // 取り消し後も修正モードは維持（修正ボタン再押しで解除）
       // _editingRackはリセットしない
@@ -1929,10 +1987,12 @@ const Score = {
       // 修正ボタンのみ表示
       const eb = el('edit-btn-' + i);
       if (eb) { eb.style.display = ''; eb.classList.add('editing'); }
+      this._showFlagRow(i, true);
     } else {
       // 通常モード：確定ボタンを表示（次ラックはまだ開放しない）
       const cb = el('confirm-btn-' + i);
       if (cb) cb.style.display = '';
+      this._showFlagRow(i, true);
     }
     this._goalReached = false;
     this.updateTotals();
@@ -1992,6 +2052,7 @@ const Score = {
     // 確定ボタン押下：次のラックを開放・確定ボタンを修正ボタンに切り替え
     const cb = el('confirm-btn-' + i);
     if (cb) cb.style.display = 'none';
+    this._showFlagRow(i, false);
     this._lockRack(i); // ここで修正ボタンも表示される
     this._goalReached = false;
     this.updateTotals();
@@ -2042,6 +2103,7 @@ const Score = {
       if (!this._inScoreEdit) {
         this._lockNextRack(i);
       }
+      this._showFlagRow(i, true);
     }
   },
 
@@ -2050,6 +2112,7 @@ const Score = {
     this._updateCurrentRack();
     const eb = el('edit-btn-' + i);
     if (eb) eb.classList.remove('editing');
+    this._showFlagRow(i, false);
     this._lockRack(i);
     // ゴール未到達なら次のラックを開放（display:noneも解除）
     if (!this._goalReached) {
@@ -2166,7 +2229,7 @@ const Score = {
     const cA=fargoA?rateToClass(fargoA).name:'—', cB=fargoB?rateToClass(fargoB).name:'—';
     const racks=[], gS=this.getSetup(); let cA2=0,cB2=0;
     const maxRacks = this._maxRacks || MAX_RACKS;
-    for (let i=0;i<maxRacks;i++){const rd=this._rd[i];if(!rd||(!rd.winA&&!rd.winB))break;const lose=Math.min(rd.loseVal||0,7);const sA=rd.winA?14:lose,sB=rd.winB?14:lose;cA2+=sA;cB2+=sB;racks.push({rack:i+1,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2,breakBy:rd.breakBy||null});}
+    for (let i=0;i<maxRacks;i++){const rd=this._rd[i];if(!rd||(!rd.winA&&!rd.winB))break;const lose=Math.min(rd.loseVal||0,7);const sA=rd.winA?14:lose,sB=rd.winB?14:lose;cA2+=sA;cB2+=sB;const flags=rd.flags?{bnr:!!rd.flags.bnr,tableRun:!!rd.flags.tableRun,winZip:!!rd.flags.winZip,winOnBreak:!!rd.flags.winOnBreak}:null;racks.push({rack:i+1,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2,breakBy:rd.breakBy||null,flags});}
     if (!this._savedRecord) {
       // 新規保存
       this._savedRecord = {id:Date.now(),date:new Date().toLocaleString('ja-JP'),
@@ -2270,6 +2333,8 @@ const Score = {
       // ケース①：確定前（勝利選択済み）→ 勝利選択を取り消す
       const rd = this._rd[pendingIdx];
       rd.winA = false; rd.winB = false; rd.loseVal = 0;
+      if (rd.flags) { rd.flags.bnr=false; rd.flags.tableRun=false; rd.flags.winZip=false; rd.flags.winOnBreak=false; }
+      this._showFlagRow(pendingIdx, false);
       this._renderRackCells(pendingIdx);
       const cb = el('confirm-btn-' + pendingIdx);
       if (cb) cb.style.display = 'none';
@@ -2282,13 +2347,21 @@ const Score = {
       // 次ラック以降を非表示・データクリア
       const maxR = this._maxRacks || MAX_RACKS;
       for (let j = prevIdx + 1; j < maxR; j++) {
-        if (this._rd[j]) { this._rd[j].winA = false; this._rd[j].winB = false; this._rd[j].loseVal = 0; }
+        if (this._rd[j]) {
+          this._rd[j].winA = false; this._rd[j].winB = false; this._rd[j].loseVal = 0;
+          if (this._rd[j].flags) { this._rd[j].flags.bnr=false; this._rd[j].flags.tableRun=false; this._rd[j].flags.winZip=false; this._rd[j].flags.winOnBreak=false; }
+        }
+        this._showFlagRow(j, false);
         const row = el('rack-row-' + j);
         if (row) row.style.display = 'none';
       }
       // 直前ラックをリセット
       const rd = this._rd[prevIdx];
-      if (rd) { rd.winA = false; rd.winB = false; rd.loseVal = 0; }
+      if (rd) {
+        rd.winA = false; rd.winB = false; rd.loseVal = 0;
+        if (rd.flags) { rd.flags.bnr=false; rd.flags.tableRun=false; rd.flags.winZip=false; rd.flags.winOnBreak=false; }
+      }
+      this._showFlagRow(prevIdx, false);
       this._renderRackCells(prevIdx);
       const bA = el('win-a-' + prevIdx), bB = el('win-b-' + prevIdx);
       if (bA) { bA.disabled = false; bA.style.pointerEvents = ''; bA.style.opacity = ''; }
@@ -3527,9 +3600,37 @@ const Adv = {
     UI.openModal('modal-match');
   },
 
+  // 勝ち方フラグの自動判定（B&R / Table Run / Win-Zip / Win-on-Break）
+  _detectFlags(rack) {
+    const flags = {bnr:false, tableRun:false, winZip:false, winOnBreak:false};
+    if (!rack || !rack.winner) return flags;
+    const winner = rack.winner, loser = winner==='A'?'B':'A';
+    const innings = rack.innings || [];
+    let loserPocketed = 0;
+    innings.filter(i => i.player === loser).forEach(i => {
+      loserPocketed += (i.pocketed || []).filter(b => b !== 8).length;
+    });
+    flags.winZip = (loserPocketed === 0);
+    const breakInning = innings.find(i => i.isBreak);
+    const postBreak = innings.filter(i => !i.isBreak);
+    const loserShots = postBreak.filter(i => i.player === loser);
+    if (breakInning && breakInning.player === winner && (breakInning.pocketed||[]).includes(8) && !breakInning.foul) {
+      flags.winOnBreak = true;
+    }
+    if (rack.breakBy === winner && loserShots.length === 0 && !flags.winOnBreak) {
+      flags.bnr = true;
+    }
+    if (!flags.bnr && !flags.winOnBreak && loserPocketed === 0 && loserShots.length > 0) {
+      flags.tableRun = true;
+    }
+    return flags;
+  },
+
   endGame() {
     if (!this._g||this._g.racks.length===0) { UI.toast('まだラックが記録されていません'); return; }
     const g=this._g, advId='adv_'+Date.now();
+    // 各ラックに勝ち方フラグを自動付与
+    g.racks.forEach(r => { r.flags = this._detectFlags(r); });
     const advRecord={id:advId,date:new Date().toLocaleString('ja-JP'),nameA:g.nameA,nameB:g.nameB,fargoA:g.fargoA,fargoB:g.fargoB,gA:g.gA,gB:g.gB,racks:g.racks};
     State.addAdvMatch(advRecord); window._lastAdvMatchId=advId;
     // 得点集計
@@ -3550,13 +3651,14 @@ const Adv = {
     // simpleRacks変換
     let cA2=0,cB2=0;
     const simRacks=g.racks.map(r=>{
-      if (!r.winner) return {rack:r.rack,scoreA:0,scoreB:0,cumulA:0,cumulB:0,breakBy:r.breakBy||null};
+      const fl=r.flags?{bnr:!!r.flags.bnr,tableRun:!!r.flags.tableRun,winZip:!!r.flags.winZip,winOnBreak:!!r.flags.winOnBreak}:null;
+      if (!r.winner) return {rack:r.rack,scoreA:0,scoreB:0,cumulA:0,cumulB:0,breakBy:r.breakBy||null,flags:fl};
       const loser=r.winner==='A'?'B':'A'; let lPts=0;
       (r.innings||[]).filter(i=>i.player===loser&&!i.isBreak).forEach(i=>{ lPts+=(i.pocketed||[]).filter(b=>b!==8).length; });
       lPts=Math.min(lPts,7);
       const sA=r.winner==='A'?14:lPts, sB=r.winner==='B'?14:lPts;
       cA2+=sA; cB2+=sB;
-      return {rack:r.rack,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2,breakBy:r.breakBy||null};
+      return {rack:r.rack,scoreA:sA,scoreB:sB,cumulA:cA2,cumulB:cB2,breakBy:r.breakBy||null,flags:fl};
     });
     const matchRecord={id:Date.now()+1,date:advRecord.date,playerA:{name:g.nameA,fargoRate:g.fargoA,class:cA,goal:g.gA,score:tA,jcl:jclA},playerB:{name:g.nameB,fargoRate:g.fargoB,class:cB,goal:g.gB,score:tB,jcl:jclB},winner,racks:simRacks,advMatchId:advId};
     State.addMatch(matchRecord);
@@ -3772,13 +3874,20 @@ const History = {
       const breakHtml = (bb==='A'||bb==='B')
         ? '<span style="color:'+(bb==='A'?'var(--green)':'var(--accent)')+';font-size:10px;font-weight:700;min-width:30px">🎱'+bb+'</span>'
         : '<span style="min-width:30px"></span>';
+      const fl=r.flags||{};
+      const flagLabels=[];
+      if (fl.bnr) flagLabels.push('B&amp;R');
+      if (fl.tableRun) flagLabels.push('TR');
+      if (fl.winZip) flagLabels.push('WZ');
+      if (fl.winOnBreak) flagLabels.push('WoB');
+      const flagsHtml = flagLabels.length ? '<div style="font-size:9px;color:var(--gold);letter-spacing:1px;padding-left:62px;margin-top:-2px;margin-bottom:2px">'+flagLabels.join(' / ')+'</div>' : '';
       return '<div class="rack-hist-row">' +
         '<span style="color:var(--text-dim);min-width:56px">RACK'+String(r.rack).padStart(2,'0')+'</span>' +
         breakHtml +
         '<span style="color:'+(wA?'var(--green)':'var(--text-dim)')+'">'+r.scoreA+'</span>' +
         '<span style="color:var(--text-dim)">-</span>' +
         '<span style="color:'+(wB?'var(--accent)':'var(--text-dim)')+'">'+r.scoreB+'</span>' +
-        '<span style="color:var(--text-dim);text-align:right;flex:1">'+r.cumulA+'-'+r.cumulB+'</span></div>';
+        '<span style="color:var(--text-dim);text-align:right;flex:1">'+r.cumulA+'-'+r.cumulB+'</span></div>' + flagsHtml;
     }).join('');
     el('modal-match-content').innerHTML=
       '<div class="modal-title">'+esc(pA)+' vs '+esc(pB)+'</div>' +
