@@ -954,12 +954,15 @@ function calcGoals(rA, rB) {
   else          { gB = (GOAL_TABLE[cB.name]||{})[cA.name]||null; gA = (GOAL_TABLE2[cB.name]||{})[cA.name]||null; }
   return {gA, gB, cA:cA.name, cB:cB.name};
 }
-function calcJCL(tA, tB, gA, gB) {
+function calcJCL(tA, tB, gA, gB, lastRackWinner) {
   const aWin = gA && tA >= gA, bWin = gB && tB >= gB;
   let winner = 'draw';
   if (aWin && !bWin) winner = 'A';
   else if (bWin && !aWin) winner = 'B';
-  else if (aWin && bWin) winner = tA > tB ? 'A' : tB > tA ? 'B' : 'draw';
+  else if (aWin && bWin) {
+    // ヒルヒル：両者ゴール到達 → 最終ラックを取った側（8番ポケッター）が勝ち
+    winner = (lastRackWinner === 'A' || lastRackWinner === 'B') ? lastRackWinner : (tA > tB ? 'A' : tB > tA ? 'B' : 'draw');
+  }
   let jclA = tA, jclB = tB;
   if (winner === 'A') { jclA = 100 + (gB - tB) * 2; jclB = tB; }
   else if (winner === 'B') { jclB = 100 + (gA - tA) * 2; jclA = tA; }
@@ -2046,7 +2049,16 @@ const Score = {
     }
     this._goalReached = true; // ゴール到達フラグ
     const {nameA, nameB} = this.getSetup();
-    const {winner, jclA, jclB} = calcJCL(tA, tB, gA, gB);
+    // 最終ラック（最後に勝者が確定したラック）の勝者を取得
+    let lastRackWinner = null;
+    {
+      const maxR = this._maxRacks || MAX_RACKS;
+      for (let i = maxR - 1; i >= 0; i--) {
+        const rd = this._rd[i];
+        if (rd && (rd.winA || rd.winB)) { lastRackWinner = rd.winA ? 'A' : 'B'; break; }
+      }
+    }
+    const {winner, jclA, jclB} = calcJCL(tA, tB, gA, gB, lastRackWinner);
     const winName = winner==='A'?nameA:winner==='B'?nameB:'引き分け';
     // ゴール到達時にLocalStorageへ自動保存（重複防止）
     // _inScoreEditはここでは変更しない（simpleEditScore側で管理）
@@ -3416,7 +3428,12 @@ const Adv = {
       lPts=Math.min(lPts,7);
       if (r.winner==='A'){tA+=14;tB+=lPts;}else{tB+=14;tA+=lPts;}
     });
-    const {winner,jclA,jclB}=calcJCL(tA,tB,g.gA,g.gB);
+    // 最終ラック勝者（ヒルヒル判定用）
+    let lastRackWinner = null;
+    for (let i = g.racks.length - 1; i >= 0; i--) {
+      if (g.racks[i] && g.racks[i].winner) { lastRackWinner = g.racks[i].winner; break; }
+    }
+    const {winner,jclA,jclB}=calcJCL(tA,tB,g.gA,g.gB,lastRackWinner);
     const cA=g.fargoA?rateToClass(g.fargoA).name:'—', cB=g.fargoB?rateToClass(g.fargoB).name:'—';
     // simpleRacks変換
     let cA2=0,cB2=0;
