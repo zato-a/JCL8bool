@@ -435,6 +435,7 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
                 <span id="rh-name-b" style="display:none"></span>
                 <span></span>
               </div>
+              <div id="simple-break-banner" style="display:none;align-items:center;justify-content:center;gap:8px;padding:8px 14px;margin-bottom:6px;border-radius:var(--r-sm);font-size:13px;font-weight:700;letter-spacing:1px"></div>
               <div id="simple-guide-bar" class="guide-bar" style="display:none">
                 <span class="guide-bar-icon">👇</span>
                 <span id="simple-guide-text"></span>
@@ -499,6 +500,7 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
             <span class="guide-bar-icon">👇</span>
             <span id="adv-guide-text"></span>
           </div>
+          <div id="adv-break-banner" style="display:none;align-items:center;justify-content:center;gap:8px;padding:8px 14px;margin:0 16px 8px;border-radius:var(--r-sm);font-size:13px;font-weight:700;letter-spacing:1px"></div>
           <div class="adv-rack-hdr" id="adv-rack-hdr">
             <div class="adv-turn-name adv-turn-name-a inactive" id="adv-turn-name-a">A</div>
             <div style="text-align:center;padding:10px 8px">
@@ -1781,6 +1783,7 @@ const Score = {
     this._renderAllRackBreaks();
     this._renderSimpleBreakPickCard();
     this._updateRack1BreakGate();
+    this._updateCurrentRack();
   },
 
   toggleFlag(i, flag) {
@@ -1924,6 +1927,27 @@ const Score = {
       if (row.style.display === 'none') { row.classList.remove('current'); continue; }
       row.classList.toggle('current', i === highlightIdx);
     }
+    this._updateBreakBanner(highlightIdx);
+  },
+
+  _updateBreakBanner(curIdx) {
+    const banner = el('simple-break-banner');
+    if (!banner) return;
+    const inGame = el('simple-game-area') && el('simple-game-area').style.display !== 'none';
+    if (!inGame || this._goalReached || curIdx < 0) { banner.style.display = 'none'; return; }
+    const rd = this._rd && this._rd[curIdx];
+    const breakBy = rd && rd.breakBy;
+    if (breakBy !== 'A' && breakBy !== 'B') { banner.style.display = 'none'; return; }
+    const {nameA, nameB} = this.getSetup();
+    const name = breakBy === 'A' ? nameA : nameB;
+    const color = breakBy === 'A' ? 'var(--green)' : 'var(--accent)';
+    const bg = breakBy === 'A' ? 'rgba(76,222,128,0.10)' : 'rgba(0,229,255,0.10)';
+    const border = breakBy === 'A' ? 'rgba(76,222,128,0.4)' : 'rgba(0,229,255,0.4)';
+    banner.style.display = 'flex';
+    banner.style.background = bg;
+    banner.style.border = '1px solid ' + border;
+    banner.style.color = color;
+    banner.innerHTML = '<span style="font-size:16px">🎱</span><span>' + esc(name) + ' のブレイク</span>';
   },
   setWinner(i, side) {
     const rd = this._rd[i];
@@ -2049,6 +2073,25 @@ const Score = {
   _editingRack: -1, // 現在修正中のラック番号
 
   confirmRack(i) {
+    // フラグと敗者点数の整合性チェック
+    const rd = this._rd[i];
+    if (rd) {
+      // 入力欄から最新のloseValを取得
+      const inp = el('lose-' + i);
+      if (inp) rd.loseVal = parseInt(inp.value) || 0;
+      const loseVal = Math.min(rd.loseVal || 0, 7);
+      const f = rd.flags || {};
+      const anyFlag = f.bnr || f.tableRun || f.winZip || f.winOnBreak;
+      if (anyFlag && loseVal > 0) {
+        const labels = [];
+        if (f.bnr) labels.push('B&R');
+        if (f.tableRun) labels.push('Table Run');
+        if (f.winZip) labels.push('Win-Zip');
+        if (f.winOnBreak) labels.push('Win-on-Break');
+        UI.toast('「'+labels.join(' / ')+'」は負け側に得点があると成立しません。点数または勝ち方を見直してください。', 4500);
+        return;
+      }
+    }
     // 確定ボタン押下：次のラックを開放・確定ボタンを修正ボタンに切り替え
     const cb = el('confirm-btn-' + i);
     if (cb) cb.style.display = 'none';
@@ -2580,6 +2623,8 @@ const Score = {
     el('rack-rows').innerHTML = '';
     const breakCard = el('simple-break-pick-card');
     if (breakCard) { breakCard.style.display = 'none'; breakCard.innerHTML = ''; }
+    const breakBanner = el('simple-break-banner');
+    if (breakBanner) breakBanner.style.display = 'none';
     el('simple-total-a').textContent = '0';
     el('simple-total-b').textContent = '0';
     updateRing('simple', 'a', 0, 0);
@@ -2594,6 +2639,8 @@ const Score = {
     el('adv-rack-history').innerHTML = '<div class="empty-state" style="padding:12px">まだラックがありません</div>';
     el('adv-inning-card').style.display = 'none';
     el('adv-break-card').innerHTML = '';
+    const advBanner = el('adv-break-banner');
+    if (advBanner) advBanner.style.display = 'none';
     el('adv-total-a').textContent = '0'; el('adv-total-b').textContent = '0';
     updateRing('adv', 'a', 0, 0);
     updateRing('adv', 'b', 0, 0);
@@ -2861,6 +2908,7 @@ const Adv = {
     const g=this._g, rack=g.currentRack;
     el('adv-rack-num').textContent = 'RACK ' + String(rack.rack).padStart(2,'0');
     el('adv-inning-num').textContent = 'イニング ' + rack.currentInning;
+    this._updateBreakBanner();
     // プレイヤー名表示
     const nameElA = el('adv-turn-name-a');
     const nameElB = el('adv-turn-name-b');
@@ -3598,6 +3646,24 @@ const Adv = {
       '<div style="margin-bottom:12px">'+StatsUI.renderGrid(sA,g.nameA)+'</div>' +
       '<div>'+StatsUI.renderGrid(sB,g.nameB)+'</div>';
     UI.openModal('modal-match');
+  },
+
+  _updateBreakBanner() {
+    const banner = el('adv-break-banner');
+    if (!banner) return;
+    const g = this._g;
+    if (!g || !g.currentRack) { banner.style.display = 'none'; return; }
+    const breakBy = g.currentRack.breakBy;
+    if (breakBy !== 'A' && breakBy !== 'B') { banner.style.display = 'none'; return; }
+    const name = breakBy === 'A' ? g.nameA : g.nameB;
+    const color = breakBy === 'A' ? 'var(--green)' : 'var(--accent)';
+    const bg = breakBy === 'A' ? 'rgba(76,222,128,0.10)' : 'rgba(0,229,255,0.10)';
+    const border = breakBy === 'A' ? 'rgba(76,222,128,0.4)' : 'rgba(0,229,255,0.4)';
+    banner.style.display = 'flex';
+    banner.style.background = bg;
+    banner.style.border = '1px solid ' + border;
+    banner.style.color = color;
+    banner.innerHTML = '<span style="font-size:16px">🎱</span><span>' + esc(name) + ' のブレイク</span>';
   },
 
   // 勝ち方フラグの自動判定（B&R / Table Run / Win-Zip / Win-on-Break）
