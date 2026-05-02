@@ -1831,6 +1831,10 @@ const Score = {
   },
 
   _updateRack1BreakGate() {
+    // ラック1が確定済み（修正モードでない）なら触らない
+    const rd0 = this._rd && this._rd[0];
+    const isLocked = rd0 && (rd0.winA || rd0.winB) && this._editingRack !== 0;
+    if (isLocked) return;
     // ラック1のブレイカーが未選択なら勝利ボタンを抑制
     const bA = el('win-a-0'), bB = el('win-b-0');
     const lock = !this._firstBreaker;
