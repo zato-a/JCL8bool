@@ -1908,18 +1908,25 @@ const Score = {
     }
   },
 
+  _getCurrentPlayingRackIdx() {
+    const maxR = this._maxRacks || MAX_RACKS;
+    if (this._editingRack >= 0) return this._editingRack;
+    // 確定待ちラック（勝者選択済み・確定ボタン表示中）を優先
+    for (let i = 0; i < maxR; i++) {
+      const cb = el('confirm-btn-' + i);
+      if (cb && cb.style.display !== 'none') return i;
+    }
+    // 勝者未選択の最初のラック
+    for (let i = 0; i < maxR; i++) {
+      const rd = this._rd[i];
+      if (!rd || (!rd.winA && !rd.winB)) return i;
+    }
+    return -1;
+  },
+
   _updateCurrentRack() {
     const maxR = this._maxRacks || MAX_RACKS;
-    // 修正中ならそのラックをハイライト、そうでなければ現在のラック
-    let highlightIdx = -1;
-    if (this._editingRack >= 0) {
-      highlightIdx = this._editingRack;
-    } else {
-      for (let i = 0; i < maxR; i++) {
-        const rd = this._rd[i];
-        if (!rd || (!rd.winA && !rd.winB)) { highlightIdx = i; break; }
-      }
-    }
+    const highlightIdx = this._getCurrentPlayingRackIdx();
     for (let i = 0; i < maxR; i++) {
       const row = el('rack-row-' + i);
       if (!row) continue;
