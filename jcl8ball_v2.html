@@ -1821,6 +1821,15 @@ const Score = {
     if (show) this._renderFlagChips(i);
   },
 
+  _scrollRackIntoView(i) {
+    setTimeout(() => {
+      const target = el('flag-row-' + i) || el('rack-row-' + i);
+      if (!target) return;
+      try { target.scrollIntoView({behavior:'smooth', block:'center'}); }
+      catch(e) { target.scrollIntoView(); }
+    }, 80);
+  },
+
   _updateRack1BreakGate() {
     // ラック1のブレイカーが未選択なら勝利ボタンを抑制
     const bA = el('win-a-0'), bB = el('win-b-0');
@@ -2065,6 +2074,8 @@ const Score = {
       if (cb) cb.style.display = '';
       this._showFlagRow(i, true);
     }
+    // 該当ラックを画面中央へスクロール（フラグ列が見やすい位置に）
+    this._scrollRackIntoView(i);
     this._goalReached = false;
     this.updateTotals();
     this._updateCurrentRack();
