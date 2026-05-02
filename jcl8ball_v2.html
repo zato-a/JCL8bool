@@ -2477,9 +2477,13 @@ const Score = {
     }
 
     this._goalReached = false;
+    // どのラックにも勝者がいない状態に戻ったらブレイク担当をクリアして再選択可能に
+    const anyWinner = (this._rd || []).some(r => r && (r.winA || r.winB));
+    if (!anyWinner) this._firstBreaker = null;
     this.updateTotals();
     this._recomputeBreaks();
     this._renderAllRackBreaks();
+    this._renderSimpleBreakPickCard();
     this._updateRack1BreakGate();
     this._updateCurrentRack();
     this._updateSimpleGuide();
