@@ -30,6 +30,9 @@ button{cursor:pointer}
 .page.slide-in-right,.page.slide-in-left,.page.slide-out-left,.page.slide-out-right{position:fixed;top:0;left:0;right:0;bottom:0;overflow-y:auto;z-index:50;background:var(--bg)}
 .container{max-width:500px;margin:0 auto;padding:0 16px}
 .nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.confirm-fab{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));padding:8px 12px;background:linear-gradient(180deg,rgba(10,10,15,0) 0%,rgba(10,10,15,0.9) 30%,rgba(10,10,15,0.95) 100%);z-index:99;display:none;justify-content:center;pointer-events:none}
+.confirm-fab.show{display:flex}
+.confirm-fab .btn-action{pointer-events:auto;width:100%;max-width:480px;padding:14px;font-size:14px;letter-spacing:3px;box-shadow:0 4px 16px rgba(76,222,128,0.35)}
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 2px;border:none;background:none;color:var(--text-dim);font-size:9px;gap:2px;transition:color .2s}
 .nav-btn.active{color:var(--green);animation:text-glow-green 3s ease-in-out infinite}.nav-btn.active svg,.nav-btn.active .nav-icon-bg{background:rgba(76,222,128,0.15);border-radius:11px;animation:neon-pulse-green 3s ease-in-out infinite}
 .page-header{text-align:center;padding:32px 16px 24px}
@@ -794,6 +797,10 @@ select.guide-pulse{border-color:rgba(76,222,128,0.7)!important;animation:pulse-g
 
 <!-- ===== HELP BUTTON ===== -->
 <button id="help-btn" onclick="Help.open()" style="position:fixed;left:16px;top:16px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--gold);font-size:16px;font-weight:700;border-color:rgba(245,200,66,0.4);z-index:200;display:flex;align-items:center;justify-content:center;cursor:pointer">?</button>
+<div id="simple-confirm-fab" class="confirm-fab">
+  <button class="btn-action" id="simple-confirm-fab-btn">✓ 確定</button>
+</div>
+
 <nav class="nav">
   <button class="nav-btn active" id="nav-home" onclick="Nav.go('home')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>ホーム
@@ -1935,6 +1942,38 @@ const Score = {
       row.classList.toggle('current', i === highlightIdx);
     }
     this._updateBreakBanner(highlightIdx);
+    this._updateConfirmFab();
+  },
+
+  _updateConfirmFab() {
+    const fab = el('simple-confirm-fab');
+    if (!fab) return;
+    const page = document.querySelector('#page-score');
+    const inGame = el('simple-game-area') && el('simple-game-area').style.display !== 'none';
+    if (!inGame) {
+      fab.classList.remove('show');
+      if (page) page.style.paddingBottom = '';
+      return;
+    }
+    // 確定ボタンが表示中のラックを探す
+    const maxR = this._maxRacks || MAX_RACKS;
+    let pendingIdx = -1;
+    for (let i = 0; i < maxR; i++) {
+      const cb = el('confirm-btn-' + i);
+      if (cb && cb.style.display !== 'none') { pendingIdx = i; break; }
+    }
+    if (pendingIdx < 0) {
+      fab.classList.remove('show');
+      if (page) page.style.paddingBottom = '';
+      return;
+    }
+    const btn = el('simple-confirm-fab-btn');
+    if (btn) {
+      btn.textContent = '✓ RACK ' + String(pendingIdx + 1).padStart(2, '0') + ' を確定';
+      btn.onclick = () => Score.confirmRack(pendingIdx);
+    }
+    fab.classList.add('show');
+    if (page) page.style.paddingBottom = '160px';
   },
 
   _updateBreakBanner(curIdx) {
@@ -2632,6 +2671,8 @@ const Score = {
     if (breakCard) { breakCard.style.display = 'none'; breakCard.innerHTML = ''; }
     const breakBanner = el('simple-break-banner');
     if (breakBanner) breakBanner.style.display = 'none';
+    const confirmFab = el('simple-confirm-fab');
+    if (confirmFab) confirmFab.classList.remove('show');
     el('simple-total-a').textContent = '0';
     el('simple-total-b').textContent = '0';
     updateRing('simple', 'a', 0, 0);
