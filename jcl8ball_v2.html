@@ -33,6 +33,7 @@ button{cursor:pointer}
 .confirm-fab{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));padding:8px 12px;background:linear-gradient(180deg,rgba(10,10,15,0) 0%,rgba(10,10,15,0.9) 30%,rgba(10,10,15,0.95) 100%);z-index:99;display:none;justify-content:center;pointer-events:none}
 .confirm-fab.show{display:flex}
 .confirm-fab .btn-action{pointer-events:auto;width:100%;max-width:480px;padding:14px;font-size:14px;letter-spacing:3px;box-shadow:0 4px 16px rgba(76,222,128,0.35)}
+#rack-rows [id^="confirm-btn-"]{display:none!important}
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 2px;border:none;background:none;color:var(--text-dim);font-size:9px;gap:2px;transition:color .2s}
 .nav-btn.active{color:var(--green);animation:text-glow-green 3s ease-in-out infinite}.nav-btn.active svg,.nav-btn.active .nav-icon-bg{background:rgba(76,222,128,0.15);border-radius:11px;animation:neon-pulse-green 3s ease-in-out infinite}
 .page-header{text-align:center;padding:32px 16px 24px}
